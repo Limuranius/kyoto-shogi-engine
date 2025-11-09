@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import collections
 import copy
+from collections import defaultdict
+from typing import Generator
 
 from Figure import Figure, Side, FigureType
 from Move import Move
@@ -21,7 +23,7 @@ class Board:
             cells: BoardCells,
             inventory_black: Inventory,
             inventory_white: Inventory,
-            turn: Side = Side.WHITE,
+            turn: Side = Side.BLACK,
     ):
         self.cells = cells
         self.inventory_black = inventory_black
@@ -53,7 +55,8 @@ class Board:
         return Board(
             cells=cells,
             inventory_black=collections.defaultdict(int),
-            inventory_white=collections.defaultdict(int)
+            inventory_white=collections.defaultdict(int),
+            turn=Side.BLACK
         )
 
     def get_inventory_lists(self) -> tuple[list[FigureType], list[FigureType]]:
@@ -71,7 +74,7 @@ class Board:
         """Makes move and returns new version of board"""
         new_board = self.copy()
         i, j = move.array_destination
-        inv = self.get_side_inventory(self.turn)
+        inv = new_board.get_side_inventory(self.turn)
         assert self.turn == move.figure.side  # is right side to move?
         if move.is_drop:
             new_board.cells[i][j] = move.figure
@@ -118,32 +121,51 @@ class Board:
         else:
             if self.cells[i][j].side != self.turn:  # Enemy's figure
                 return []
-            figure = self.cells[i][j]
-            for dy, dx in figure.get_moves():
-                new_i, new_j = i + dy, j + dx
-                if 0 <= new_i < 5 and 0 <= new_j < 5:  # in bounds
-                    not_friendly_fire = any([
-                        self.is_empty_cell(new_i, new_j),
-                        self.cells[new_i][new_j].side == self.cells[i][j].side.opposite(),
-                    ])
-                    obstructed = False  # If path to cell is obstructed by other figures
-                    if not (figure.type == FigureType.GOLD_KNIGHT and figure.state == 1):  # not knight
-                        dy_sign = dy // abs(dy) if dy != 0 else 0
-                        dx_sign = dx // abs(dx) if dx != 0 else 0
-                        tmp_i, tmp_j = new_i - dy_sign, new_j - dx_sign
-                        while (tmp_i, tmp_j) != (i, j):
-                            if not self.is_empty_cell(tmp_i, tmp_j):
-                                obstructed = True
-                            tmp_i -= dy_sign
-                            tmp_j -= dx_sign
 
-                    if not_friendly_fire and not obstructed:
-                        moves.append(Move(
-                            array_destination=(new_i, new_j),
-                            figure=figure,
-                            array_origin=(i, j),
-                        ))
+            figure = self.cells[i][j]
+            for destination in self.get_cell_destinations(i, j, include_friendly_fire=False):
+                moves.append(Move(
+                    array_destination=destination,
+                    figure=figure,
+                    array_origin=(i, j),
+                ))
+
         return moves
+
+    def get_cell_destinations(
+            self,
+            i: int, j: int,
+            include_friendly_fire: bool = False
+    ) -> Generator[tuple[int, int], None, None]:
+        """
+        Yields all possible destinations that a piece at cell (i, j) can go to
+        if :include_friendly_fire is True then also returns destinations with friendly figures
+        """
+        if self.is_empty_cell(i, j):
+            return
+
+        figure = self.cells[i][j]
+        for dy, dx in figure.get_moves():
+            new_i, new_j = i + dy, j + dx
+            if 0 <= new_i < 5 and 0 <= new_j < 5:  # in bounds
+                not_friendly_fire = (
+                        include_friendly_fire
+                        or self.is_empty_cell(new_i, new_j)
+                        or self.cells[new_i][new_j].side == self.cells[i][j].side.opposite()
+                )
+                obstructed = False  # If path to cell is obstructed by other figures
+                if not (figure.type == FigureType.GOLD_KNIGHT and figure.state == 1):  # not knight
+                    dy_sign = dy // abs(dy) if dy != 0 else 0
+                    dx_sign = dx // abs(dx) if dx != 0 else 0
+                    tmp_i, tmp_j = new_i - dy_sign, new_j - dx_sign
+                    while (tmp_i, tmp_j) != (i, j):
+                        if not self.is_empty_cell(tmp_i, tmp_j):
+                            obstructed = True
+                        tmp_i -= dy_sign
+                        tmp_j -= dx_sign
+
+                if not_friendly_fire and not obstructed:
+                    yield new_i, new_j
 
     def is_empty_cell(self, i: int, j: int) -> bool:
         return self.cells[i][j] is None
@@ -161,16 +183,34 @@ class Board:
             self.turn,
         )
 
-    def print(self):
+    def to_str(self) -> str:
+        result = ""
+
+        # print white inventory
+        for fig_type in self.inventory_white:
+            count = self.inventory_white[fig_type]
+            result += fig_type.to_jp()[0] * count
+        result += "\n"
+
         for row in self.cells:
             for cell in row:
                 if cell is None:
-                    print(".   ", end="")
+                    result += " ． "
                 else:
                     direction_chr = "^" if cell.side == Side.BLACK else "v"
                     figure_chr = cell.type.to_jp()[cell.state]
-                    print(f"{figure_chr}{direction_chr} ", end="")
-            print()
+                    result += f"{figure_chr}{direction_chr} "
+            result += "\n"
+
+        # print black inventory
+        for fig_type in self.inventory_black:
+            count = self.inventory_black[fig_type]
+            result += fig_type.to_jp()[0] * count
+
+        return result
+
+    def __str__(self):
+        return self.to_str()
 
     def move_from_array_coords(self, origin: tuple[int, int], destination: tuple[int, int]):
         figure = self.cells[origin[0]][origin[1]]
@@ -180,3 +220,74 @@ class Board:
             origin,
             is_drop=False,
         )
+
+    def get_king_position(self, side: Side) -> tuple[int, int]:
+        for i in range(5):
+            for j in range(5):
+                cell = self.cells[i][j]
+                if (
+                        cell is not None
+                        and cell.type == FigureType.KING
+                        and cell.side == side
+                ):
+                    return i, j
+
+    def yield_all_moves(self):
+        for i in range(5):
+            for j in range(5):
+                for move in self.get_cell_moves(i, j):
+                    yield move
+
+    @classmethod
+    def from_str(cls, str_board: str, side_to_move: Side) -> Board:
+        """
+        Parses board from string. Example of input:
+            金金銀飛
+             ． 金v 玉v 銀v とv
+            飛v  ．  ．  ．  ．
+             ．  ．  ．  ．  ．
+             ．  ． 桂^  ．  ．
+            と^ 銀^ 玉^  ． 歩^
+            桂金歩
+
+        First and last lines show inventories. Any character of figures can be used.
+        For example 桂 and 金 will be treated same
+        """
+        rows = str_board.split("\n")
+
+        # parsing board
+        board_rows = rows[1: -1]
+        cells = []
+        chr_to_side = {"^": Side.BLACK, "v": Side.WHITE}
+        for row in board_rows:
+            row_cells = []
+            for i in range(0, len(row), 3):
+                cell_str = row[i: i+3]
+                if cell_str == " ． ":
+                    figure = None
+                else:
+                    figure = Figure.from_jp(cell_str[0], chr_to_side[cell_str[1]])
+                row_cells.append(figure)
+            cells.append(row_cells)
+
+        # parsing_inventories
+        inv_white_str = rows[0]
+        inv_black_str = rows[-1]
+        inv_white = defaultdict(int)
+        inv_black = defaultdict(int)
+        for ch in inv_white_str:
+            figure = Figure.from_jp(ch)
+            inv_white[figure.type] += 1
+        for ch in inv_black_str:
+            figure = Figure.from_jp(ch)
+            inv_black[figure.type] += 1
+
+        return Board(
+            cells=cells,
+            inventory_black=inv_black,
+            inventory_white=inv_white,
+            turn=side_to_move,
+        )
+
+    def __hash__(self):
+        return hash(self.to_str())

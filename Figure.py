@@ -21,7 +21,6 @@ class FigureType(enum.Enum):
     GOLD_KNIGHT = enum.auto()
     PAWN_ROOK = enum.auto()
 
-
     def to_jp(self) -> tuple[str, str]:
         translate_table = {
             self.TOKIN_LANCE: ("と", "香"),
@@ -48,6 +47,28 @@ class Figure:
 
     def flipped(self) -> Figure:
         return Figure(self.type, self.side, int(self.state == 0))
+
+    def __repr__(self):
+        return f"{self.type}[{self.state}] {self.side}"
+
+    def to_jp(self) -> str:
+        return self.type.to_jp()[self.state]
+
+    @classmethod
+    def from_jp(self, ch: str, side: Side = Side.BLACK) -> Figure:
+        jp_to_type = {
+            "と": (FigureType.TOKIN_LANCE, 0),
+            "香": (FigureType.TOKIN_LANCE, 1),
+            "銀": (FigureType.SILVER_BISHOP, 0),
+            "角": (FigureType.SILVER_BISHOP, 1),
+            "玉": (FigureType.KING, 0),
+            "金": (FigureType.GOLD_KNIGHT, 0),
+            "桂": (FigureType.GOLD_KNIGHT, 1),
+            "歩": (FigureType.PAWN_ROOK, 0),
+            "飛": (FigureType.PAWN_ROOK, 1),
+        }
+        figure_type, state = jp_to_type[ch]
+        return Figure(figure_type, side=side, state=state)
 
 
 # Ходы
