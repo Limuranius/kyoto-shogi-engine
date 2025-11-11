@@ -3,6 +3,8 @@ from collections.abc import Callable
 from Board import Board
 from Figure import Side, Figure, FigureType
 
+import speed_analyzer
+
 
 WEIGHTS = {
     "inventory_cost": {
@@ -66,6 +68,7 @@ class Evaluator:
                 if not board.is_empty_cell(i, j) and board.cells[i][j].side == side:
                     callback((i, j), board.cells[i][j])
 
+    @speed_analyzer.add_to_watchlist
     def calculate_attack_count(self, board: Board, side: Side):
         counts = [[0 for _ in range(5)] for _ in range(5)]
         def callback(coord: tuple[int, int], figure: Figure):
@@ -74,6 +77,7 @@ class Evaluator:
         self._callback_same_side(board, side, callback)
         return counts
 
+    @speed_analyzer.add_to_watchlist
     def calculate_defence_count(self, board: Board, side: Side):
         counts = [[0 for _ in range(5)] for _ in range(5)]
 
@@ -85,6 +89,7 @@ class Evaluator:
         self._callback_same_side(board, side, callback)
         return counts
 
+    @speed_analyzer.add_to_watchlist
     def calculate_defence_and_attack_count(self, board: Board, side: Side):
         counts = [[0 for _ in range(5)] for _ in range(5)]
 
@@ -95,6 +100,7 @@ class Evaluator:
         self._callback_same_side(board, side, callback)
         return counts
 
+    @speed_analyzer.add_to_watchlist
     def _inventory_cost(self, board: Board, side: Side) -> float:
         """Cost of pieces in inventory"""
         score = 0
@@ -103,6 +109,7 @@ class Evaluator:
             score += inv[figure_type] * WEIGHTS["inventory_cost"][figure_type]
         return score
 
+    @speed_analyzer.add_to_watchlist
     def _board_cost(self, board: Board, side: Side) -> float:
         """Cost of pieces on board"""
         score = 0
@@ -114,6 +121,7 @@ class Evaluator:
         self._callback_same_side(board, side, callback)
         return score
 
+    @speed_analyzer.add_to_watchlist
     def _attack_count(self, board: Board, side: Side) -> float:
         """Count of attacks on cells. If two pieces attack same cell then this counts as 2"""
         attack_counts = self.calculate_attack_count(board, side)
@@ -123,6 +131,7 @@ class Evaluator:
                 score += attack_counts[i][j]
         return score
 
+    @speed_analyzer.add_to_watchlist
     def _defence_count(self, board: Board, side: Side) -> float:
         """Count of defences of friendly pieces. If two pieces defend same cell then this counts as 2"""
         defence_counts = self.calculate_defence_count(board, side)
@@ -132,6 +141,7 @@ class Evaluator:
                 score += defence_counts[i][j]
         return score
 
+    @speed_analyzer.add_to_watchlist
     def _king_defence_count(self, board: Board, side: Side) -> float:
         """Count of defenced cells around king"""
         if FigureType.KING in board.get_side_inventory(side.opposite()):  # King was taken
@@ -147,6 +157,7 @@ class Evaluator:
                 score += defence_counts[i][j]
         return score
 
+    @speed_analyzer.add_to_watchlist
     def _king_attack_count(self, board: Board, side: Side) -> float:
         """Count of attacked cells around king"""
         if FigureType.KING in board.get_side_inventory(side.opposite()):  # King was taken

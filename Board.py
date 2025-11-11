@@ -5,6 +5,7 @@ import copy
 from collections import defaultdict
 from typing import Generator
 
+import speed_analyzer
 from Figure import Figure, Side, FigureType
 from Move import Move
 
@@ -70,6 +71,7 @@ class Board:
             white += [figure] * count
         return black, white
 
+    @speed_analyzer.add_to_watchlist
     def make_move(self, move: Move) -> Board:
         """Makes move and returns new version of board"""
         new_board = self.copy()
@@ -92,6 +94,7 @@ class Board:
         new_board.turn = self.turn.opposite()
         return new_board
 
+    @speed_analyzer.add_to_watchlist
     def get_cell_moves(self, i: int, j: int) -> list[Move]:
         """
         Returns all possible moves for cell (i, j)
@@ -175,6 +178,7 @@ class Board:
             return self.inventory_black
         return self.inventory_white
 
+    @speed_analyzer.add_to_watchlist
     def copy(self):
         return Board(
             copy.deepcopy(self.cells),
@@ -221,6 +225,7 @@ class Board:
             is_drop=False,
         )
 
+    @speed_analyzer.add_to_watchlist
     def get_king_position(self, side: Side) -> tuple[int, int]:
         for i in range(5):
             for j in range(5):

@@ -2,7 +2,11 @@ import engine
 from Board import Board
 from Figure import Figure, FigureType, Side
 from Move import Move
+import speed_analyzer
 
+import pandas as pd
+pd.set_option("display.max_columns", 1000)
+pd.set_option("display.max_rows", 1000)
 
 
 def test1():
@@ -45,7 +49,8 @@ def tsume1():
 
     board = board.make_move(move)
     print(board)
-    print(len(evaluator.cache))
+
+    print(speed_analyzer.get_stats())
 
 
 def interactive():
