@@ -31,7 +31,7 @@ def get_binary_str_range(n: int, zfill: int = None) -> Generator[str, None, None
         yield b
 
 
-def get_attack_mask_str(
+def get_line_attack_mask_str(
         figure_mask: str,  # str of 1 or 0, where 1 - cell is occupied
         attacker_i: int,
         go_left: bool,
@@ -208,7 +208,7 @@ for i in range(5):
             figure_mask_str[i] = "1"
             figure_mask_str = "".join(figure_mask_str)
             figure_mask = int(figure_mask_str, 2)
-            attack_mask_str = get_attack_mask_str(figure_mask_str, i, go_left=True, go_right=True)
+            attack_mask_str = get_line_attack_mask_str(figure_mask_str, i, go_left=True, go_right=True)
             board_attack_mask_str = [["0" for _ in range(5)] for _ in range(5)]
             for cell_i, attack_status in zip(range(5), attack_mask_str):
                 board_attack_mask_str[cell_i][j] = attack_status
@@ -221,7 +221,7 @@ for i in range(5):
             figure_mask_str[j] = "1"
             figure_mask_str = "".join(figure_mask_str)
             figure_mask = int(figure_mask_str, 2)
-            attack_mask_str = get_attack_mask_str(figure_mask_str, j, go_left=True, go_right=True)
+            attack_mask_str = get_line_attack_mask_str(figure_mask_str, j, go_left=True, go_right=True)
             board_attack_mask_str = [["0" for _ in range(5)] for _ in range(5)]
             for cell_j, attack_status in zip(range(5), attack_mask_str):
                 board_attack_mask_str[i][cell_j] = attack_status
@@ -243,7 +243,7 @@ for i in range(5):
             figure_mask_str[bishop_i] = "1"
             figure_mask_str = "".join(figure_mask_str)
             figure_mask = int(figure_mask_str, 2)
-            attack_mask_str = get_attack_mask_str(figure_mask_str, bishop_i, go_left=True, go_right=True)
+            attack_mask_str = get_line_attack_mask_str(figure_mask_str, bishop_i, go_left=True, go_right=True)
             board_attack_mask_str = [["0" for _ in range(5)] for _ in range(5)]
             for (cell_i, cell_j), attack_status in zip(diagonal_cells, attack_mask_str):
                 board_attack_mask_str[cell_i][cell_j] = attack_status
@@ -265,7 +265,7 @@ for i in range(5):
             figure_mask_str[bishop_i] = "1"
             figure_mask_str = "".join(figure_mask_str)
             figure_mask = int(figure_mask_str, 2)
-            attack_mask_str = get_attack_mask_str(figure_mask_str, bishop_i, go_left=True, go_right=True)
+            attack_mask_str = get_line_attack_mask_str(figure_mask_str, bishop_i, go_left=True, go_right=True)
             board_attack_mask_str = [["0" for _ in range(5)] for _ in range(5)]
             for (cell_i, cell_j), attack_status in zip(diagonal_cells, attack_mask_str):
                 board_attack_mask_str[cell_i][cell_j] = attack_status
@@ -285,8 +285,8 @@ for pos in range(5):
         b = bin(i)[2:].zfill(4)
         figures_mask_str = b[:4 - pos] + "1" + b[4 - pos:]  # adding rook to line
         figures_mask = int(figures_mask_str, 2)
-        attack_mask_black_str = get_attack_mask_str(figures_mask_str, lance_str_i, go_left=True, go_right=False)
-        attack_mask_white_str = get_attack_mask_str(figures_mask_str, lance_str_i, go_left=False, go_right=True)
+        attack_mask_black_str = get_line_attack_mask_str(figures_mask_str, lance_str_i, go_left=True, go_right=False)
+        attack_mask_white_str = get_line_attack_mask_str(figures_mask_str, lance_str_i, go_left=False, go_right=True)
         attack_mask_black = int(attack_mask_black_str, 2)
         attack_mask_white = int(attack_mask_white_str, 2)
         LANCE_ATTACKS_BLACK[lance_mask, figures_mask] = attack_mask_black
@@ -301,8 +301,8 @@ for i in range(5):
             figure_mask_str[i] = "1"
             figure_mask_str = "".join(figure_mask_str)
             figure_mask = int(figure_mask_str, 2)
-            attack_mask_black_str = get_attack_mask_str(figure_mask_str, i, go_left=True, go_right=False)
-            attack_mask_white_str = get_attack_mask_str(figure_mask_str, i, go_left=False, go_right=True)
+            attack_mask_black_str = get_line_attack_mask_str(figure_mask_str, i, go_left=True, go_right=False)
+            attack_mask_white_str = get_line_attack_mask_str(figure_mask_str, i, go_left=False, go_right=True)
             board_attack_mask_black_str = [["0" for _ in range(5)] for _ in range(5)]
             board_attack_mask_white_str = [["0" for _ in range(5)] for _ in range(5)]
             for cell_i, attack_status in zip(range(5), attack_mask_black_str):
