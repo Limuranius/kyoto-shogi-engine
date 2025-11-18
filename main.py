@@ -92,6 +92,8 @@ def bitboard_test():
     bb = board.to_bitboard()
     bitboard.Bitarray5x5.print(bb[bitboard.ATTACKS_WHITE])
 
+    print(bitboard.get_bitboard_moves(bb))
+
 
 # interactive()
 # test1()

@@ -1,6 +1,9 @@
+import numpy as np
+
 from .utils import *
 
-N_FIELDS = 28  # number of fields in bitboard
+N_PUBLIC_FIELDS = 28  # number of fields in bitboard that we can access with named variable (public fields)
+N_FIELDS = N_PUBLIC_FIELDS + 25  # +25 integers for indices of figures in each cell
 (
     # 5x5 masks of figure positions stored in uint32
     TOKIN_BLACK,
@@ -41,7 +44,10 @@ N_FIELDS = 28  # number of fields in bitboard
 
     # black's turn flag. 1 or 0
     IS_BLACK_TURN,
-) = range(N_FIELDS)
+) = range(N_PUBLIC_FIELDS)
+
+# for each (i, j) coordinate stores index of integer inside bitboard that stores index of figure in (i, j) cell
+FIGURE_AT = np.arange(N_PUBLIC_FIELDS, N_PUBLIC_FIELDS + 25, dtype=np.uint32).reshape((5, 5))
 
 # How many bits need to be shifted in inventory to get figure count
 INVENTORY_SHIFT = np.zeros(18, dtype=int)
@@ -85,7 +91,6 @@ FLIP_FIGURE[GOLD_WHITE] = KNIGHT_WHITE
 FLIP_FIGURE[KNIGHT_WHITE] = GOLD_WHITE
 FLIP_FIGURE[PAWN_WHITE] = ROOK_WHITE
 FLIP_FIGURE[ROOK_WHITE] = PAWN_WHITE
-
 
 Bitboard = np.ndarray  # Bitboard, stored in uint32 array
 PositionBit = int
@@ -135,12 +140,22 @@ IS_FIGURE_BLACK[KNIGHT_WHITE] = False
 IS_FIGURE_BLACK[PAWN_WHITE] = False
 IS_FIGURE_BLACK[ROOK_WHITE] = False
 
-
 FIGURE_INDICES = list(range(TOKIN_BLACK, ROOK_WHITE + 1))
+BLACK_FIGURE_INDICES = list(range(TOKIN_BLACK, TOKIN_WHITE))
+WHITE_FIGURE_INDICES = list(range(TOKIN_WHITE, ROOK_WHITE + 1))
+BLACK_DROP_FIGURE_INDICES = [TOKIN_BLACK, SILVER_BLACK, KING_BLACK, GOLD_BLACK, PAWN_BLACK]
+WHITE_DROP_FIGURE_INDICES = [TOKIN_WHITE, SILVER_WHITE, KING_WHITE, GOLD_WHITE, PAWN_WHITE]
 
 
 def get_empty_bitboard() -> Bitboard:
-    return np.zeros(N_FIELDS, dtype=np.int32)
+    return np.zeros(N_FIELDS, dtype=np.uint32)
+
+
+def get_bit_coord(n: PositionBit) -> tuple[int, int]:
+    pos = np.bitwise_count(n - 1)
+    i = 4 - pos // 5
+    j = 4 - pos % 5
+    return i, j
 
 
 def get_bits_coords(n: int) -> list[tuple[int, int]]:
@@ -148,7 +163,7 @@ def get_bits_coords(n: int) -> list[tuple[int, int]]:
     coords = []
     while n:
         lsb = n & -n  # least significant bit
-        pos = np.bitwise_count(lsb - 1)
+        pos = np.bitwise_count(lsb - 1).astype(np.uint32)
         i = 4 - pos // 5
         j = 4 - pos % 5
         coords.append((i, j))
@@ -176,17 +191,20 @@ def update_masks(bitboard: Bitboard) -> None:
     bitboard[IS_BLACK] = np.bitwise_or.reduce(bitboard[TOKIN_BLACK: TOKIN_WHITE])
     bitboard[IS_WHITE] = np.bitwise_or.reduce(bitboard[TOKIN_WHITE: ROOK_WHITE + 1])
     bitboard[IS_OCCUPIED] = bitboard[IS_BLACK] | bitboard[IS_WHITE]
-    bitboard[IS_EMPTY] = ~bitboard[IS_OCCUPIED]
+    bitboard[IS_EMPTY] = 0 ^ bitboard[IS_OCCUPIED]
 
     for figure_index in FIGURE_INDICES:
         position_mask = bitboard[figure_index]
         for i, j in get_bits_coords(position_mask):  # iterating through figures positions
+            # Storing attacked cells
             attack_mask = get_figure_attack_mask(figure_index, bitboard[IS_OCCUPIED], i, j)
             if IS_FIGURE_BLACK[figure_index]:
                 black_attacks_mask |= attack_mask  # add attack to total mask
             else:
                 white_attacks_mask |= attack_mask
 
+            # Storing figure type at (i, j) cell
+            bitboard[FIGURE_AT[i, j]] = figure_index
 
     bitboard[ATTACKS_FF_BLACK] = black_attacks_mask
     bitboard[ATTACKS_FF_WHITE] = white_attacks_mask
@@ -198,7 +216,9 @@ def get_figure_index(
         bitboard: Bitboard,
         cell_bit: PositionBit
 ) -> BitboardIndex:
-    return (bitboard[0: ROOK_WHITE + 1] & cell_bit).argmax()
+    # return (bitboard[0: ROOK_WHITE + 1] & cell_bit).argmax()
+    i, j = get_bit_coord(cell_bit)
+    return bitboard[FIGURE_AT[i, j]]
 
 
 def get_inventory_count(
@@ -272,3 +292,61 @@ def position_mask_from_coordinates(coords: list[tuple[int, int]]):
         result |= 1 << n_shifts
     return result
 
+
+def position_bit_from_coordinates(i: int, j: int) -> int:
+    n_shifts = (4 - i) * 5 + (4 - j)
+    return 1 << n_shifts
+
+
+def figure_at(bitboard: Bitboard, i: int, j: int) -> int:
+    return bitboard[FIGURE_AT[i, j]]
+
+
+def get_bitboard_moves(bitboard: Bitboard) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Returns all possible moves of bitboard in two arrays:
+        index 0 - all moves on the board. Move is stored as two integers: old position and new position.
+            Array of shape (M, 2), where M - number of moves
+        index 1 - all drops. Drop is stored as two integers: position of drop and figure type.
+            Array of shape (D, 2), where D - number of drops
+    """
+    figures = BLACK_FIGURE_INDICES
+    friend_mask = IS_BLACK
+    figures_to_drop = BLACK_DROP_FIGURE_INDICES
+    if not bitboard[IS_BLACK_TURN]:
+        figures = WHITE_FIGURE_INDICES
+        friend_mask = IS_WHITE
+        figures_to_drop = WHITE_DROP_FIGURE_INDICES
+
+    figures_to_drop = [f for f in figures_to_drop if get_inventory_count(bitboard, f) > 0]
+
+    moves = np.zeros((50, 2), dtype=np.uint32)
+    drops = np.zeros((25, 2), dtype=np.uint32)
+    move_i = 0
+    drop_i = 0
+
+    # iterating all moves
+    for figure_index in figures:
+        for i, j in get_bits_coords(bitboard[figure_index]):
+            pos_bit = position_bit_from_coordinates(i, j)
+            attack_mask = get_figure_attack_mask(figure_index, bitboard[IS_OCCUPIED], i, j)
+            attack_mask &= ~bitboard[friend_mask]  # removing friendly-fire attacks
+            while attack_mask:  # iterating all bits of attack mask
+                new_pos = -attack_mask & attack_mask  # least significant bit
+                moves[move_i, 0] = pos_bit
+                moves[move_i, 1] = new_pos
+                move_i += 1
+                attack_mask ^= new_pos  # set bit to zero
+
+    # iterating all drops
+    drop_mask = bitboard[IS_EMPTY]
+    print(bin(drop_mask))
+    while drop_mask:  # iterating all bits of free cells
+        drop_pos = -drop_mask & drop_mask  # least significant bit
+        for figure_index in figures_to_drop:
+            drops[drop_i, 0] = drop_pos
+            drops[drop_i, 1] = figure_index
+            drop_i += 1
+        drop_mask ^= drop_pos  # set bit to zero
+
+    return moves[:move_i], drops[:drop_i]
