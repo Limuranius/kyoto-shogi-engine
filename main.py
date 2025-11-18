@@ -95,7 +95,37 @@ def bitboard_test():
     print(bitboard.get_bitboard_moves(bb))
 
 
+def bitboard_tsume1():
+    board_str = """
+金金
+ ． 金v 玉v 銀v とv 
+飛v  ．  ．  ．  ． 
+ ．  ． 金v  ．  ． 
+ ．  ．  ．  ．  ． 
+ ．  ． 玉^  ．  ． 
+
+"""[1:]
+    board = Board.from_str(board_str, Side.WHITE)
+    print(board)
+    bb = board.to_bitboard()
+
+    evaluator = bitboard.BitboardEvaluator()
+    move_picker = bitboard.BitboardMovePicker(
+        evaluator,
+        max_depth=4,
+    )
+    move = move_picker.pick_best_move(bb)
+    print(move)
+
+    # board = board.make_move(move)
+    # print(board)
+
+    print(speed_analyzer.get_stats())
+
+
+
 # interactive()
 # test1()
 # tsume1()
-bitboard_test()
+# bitboard_test()
+bitboard_tsume1()

@@ -305,8 +305,8 @@ def figure_at(bitboard: Bitboard, i: int, j: int) -> int:
 def get_bitboard_moves(bitboard: Bitboard) -> tuple[np.ndarray, np.ndarray]:
     """
     Returns all possible moves of bitboard in two arrays:
-        index 0 - all moves on the board. Move is stored as two integers: old position and new position.
-            Array of shape (M, 2), where M - number of moves
+        index 0 - all moves on the board. Move is stored as three integers: old position, new position, and figure type.
+            Array of shape (M, 3), where M - number of moves
         index 1 - all drops. Drop is stored as two integers: position of drop and figure type.
             Array of shape (D, 2), where D - number of drops
     """
@@ -320,8 +320,8 @@ def get_bitboard_moves(bitboard: Bitboard) -> tuple[np.ndarray, np.ndarray]:
 
     figures_to_drop = [f for f in figures_to_drop if get_inventory_count(bitboard, f) > 0]
 
-    moves = np.zeros((50, 2), dtype=np.uint32)
-    drops = np.zeros((25, 2), dtype=np.uint32)
+    moves = np.zeros((50, 3), dtype=np.uint32)
+    drops = np.zeros((25 * len(figures_to_drop), 2), dtype=np.uint32)
     move_i = 0
     drop_i = 0
 
@@ -335,12 +335,12 @@ def get_bitboard_moves(bitboard: Bitboard) -> tuple[np.ndarray, np.ndarray]:
                 new_pos = -attack_mask & attack_mask  # least significant bit
                 moves[move_i, 0] = pos_bit
                 moves[move_i, 1] = new_pos
+                moves[move_i, 2] = figure_index
                 move_i += 1
                 attack_mask ^= new_pos  # set bit to zero
 
     # iterating all drops
     drop_mask = bitboard[IS_EMPTY]
-    print(bin(drop_mask))
     while drop_mask:  # iterating all bits of free cells
         drop_pos = -drop_mask & drop_mask  # least significant bit
         for figure_index in figures_to_drop:
