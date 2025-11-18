@@ -1,8 +1,6 @@
-import numpy as np
+from .utils import *
 
-from bitboard.utils import get_bishop_attacks, get_rook_attacks
-from utils import *
-
+N_FIELDS = 28  # number of fields in bitboard
 (
     # 5x5 masks of figure positions stored in uint32
     TOKIN_BLACK,
@@ -43,7 +41,7 @@ from utils import *
 
     # black's turn flag. 1 or 0
     IS_BLACK_TURN,
-) = range(5)
+) = range(N_FIELDS)
 
 # How many bits need to be shifted in inventory to get figure count
 INVENTORY_SHIFT = np.zeros(18, dtype=int)
@@ -141,13 +139,21 @@ IS_FIGURE_BLACK[ROOK_WHITE] = False
 FIGURE_INDICES = list(range(TOKIN_BLACK, ROOK_WHITE + 1))
 
 
-def least_significant_bit(n: int):
-    return n & -n
+def get_empty_bitboard() -> Bitboard:
+    return np.zeros(N_FIELDS, dtype=np.int32)
 
 
-def lsb_position(lsb: PositionBit):
-    # Position (number of shifts) of least significant bit
-    return np.bitwise_count(lsb - 1)
+def get_bits_coords(n: int) -> list[tuple[int, int]]:
+    """Returns list of (i, j) coordinates of each bit in 5x5 grid"""
+    coords = []
+    while n:
+        lsb = n & -n  # least significant bit
+        pos = np.bitwise_count(lsb - 1)
+        i = 4 - pos // 5
+        j = 4 - pos % 5
+        coords.append((i, j))
+        n ^= lsb  # remove lowest bit
+    return coords
 
 
 def get_figure_attack_mask(
@@ -167,24 +173,20 @@ def update_masks(bitboard: Bitboard) -> None:
     black_attacks_mask = 0
     white_attacks_mask = 0
 
-    bitboard[IS_BLACK] = np.bitwise_or(bitboard[TOKIN_BLACK: TOKIN_WHITE])
-    bitboard[IS_WHITE] = np.bitwise_or(bitboard[TOKIN_WHITE: ROOK_WHITE + 1])
+    bitboard[IS_BLACK] = np.bitwise_or.reduce(bitboard[TOKIN_BLACK: TOKIN_WHITE])
+    bitboard[IS_WHITE] = np.bitwise_or.reduce(bitboard[TOKIN_WHITE: ROOK_WHITE + 1])
     bitboard[IS_OCCUPIED] = bitboard[IS_BLACK] | bitboard[IS_WHITE]
     bitboard[IS_EMPTY] = ~bitboard[IS_OCCUPIED]
 
     for figure_index in FIGURE_INDICES:
         position_mask = bitboard[figure_index]
-        while position_mask:
-            lsb = least_significant_bit(position_mask)
-            pos = lsb_position(lsb)
-            i = 4 - pos // 5
-            j = 4 - pos % 5
+        for i, j in get_bits_coords(position_mask):  # iterating through figures positions
             attack_mask = get_figure_attack_mask(figure_index, bitboard[IS_OCCUPIED], i, j)
             if IS_FIGURE_BLACK[figure_index]:
                 black_attacks_mask |= attack_mask  # add attack to total mask
             else:
                 white_attacks_mask |= attack_mask
-            position_mask ^= lsb  # remove lowest bit
+
 
     bitboard[ATTACKS_FF_BLACK] = black_attacks_mask
     bitboard[ATTACKS_FF_WHITE] = white_attacks_mask
@@ -261,3 +263,12 @@ def make_drop_fast(
 
     update_masks(new_bitboard)
     return new_bitboard
+
+
+def position_mask_from_coordinates(coords: list[tuple[int, int]]):
+    result = 0
+    for i, j in coords:
+        n_shifts = (4 - i) * 5 + (4 - j)
+        result |= 1 << n_shifts
+    return result
+

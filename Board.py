@@ -8,6 +8,7 @@ from typing import Generator
 import speed_analyzer
 from Figure import Figure, Side, FigureType
 from Move import Move
+import bitboard
 
 Inventory = dict[FigureType, int]
 BoardCells = list[list[Figure | None]]
@@ -30,6 +31,23 @@ class Board:
         self.inventory_black = inventory_black
         self.inventory_white = inventory_white
         self.turn = turn
+
+    @classmethod
+    def empty_board(cls):
+        cells = [
+            [None] * 5,
+            [None] * 5,
+            [None] * 5,
+            [None] * 5,
+            [None] * 5,
+        ]
+
+        return Board(
+            cells=cells,
+            inventory_black=collections.defaultdict(int),
+            inventory_white=collections.defaultdict(int),
+            turn=Side.BLACK
+        )
 
     @classmethod
     def default_board(cls):
@@ -267,7 +285,7 @@ class Board:
         for row in board_rows:
             row_cells = []
             for i in range(0, len(row), 3):
-                cell_str = row[i: i+3]
+                cell_str = row[i: i + 3]
                 if cell_str == " ． ":
                     figure = None
                 else:
@@ -296,3 +314,116 @@ class Board:
 
     def __hash__(self):
         return hash(self.to_str())
+
+    def get_figure_positions(self, figure: Figure) -> list[tuple[int, int]]:
+        coords = []
+        for i in range(5):
+            for j in range(5):
+                if self.cells[i][j] == figure:
+                    coords.append((i, j))
+        return coords
+
+    def to_bitboard(self) -> bitboard.Bitboard:
+        bb = bitboard.get_empty_bitboard()
+
+        board_figures = [
+            (bitboard.TOKIN_BLACK, Figure(type=FigureType.TOKIN_LANCE, side=Side.BLACK, state=0)),
+            (bitboard.LANCE_BLACK, Figure(type=FigureType.TOKIN_LANCE, side=Side.BLACK, state=1)),
+            (bitboard.SILVER_BLACK, Figure(type=FigureType.SILVER_BISHOP, side=Side.BLACK, state=0)),
+            (bitboard.BISHOP_BLACK, Figure(type=FigureType.SILVER_BISHOP, side=Side.BLACK, state=1)),
+            (bitboard.KING_BLACK, Figure(type=FigureType.KING, side=Side.BLACK, state=0)),
+            (bitboard.GOLD_BLACK, Figure(type=FigureType.GOLD_KNIGHT, side=Side.BLACK, state=0)),
+            (bitboard.KNIGHT_BLACK, Figure(type=FigureType.GOLD_KNIGHT, side=Side.BLACK, state=1)),
+            (bitboard.PAWN_BLACK, Figure(type=FigureType.PAWN_ROOK, side=Side.BLACK, state=0)),
+            (bitboard.ROOK_BLACK, Figure(type=FigureType.PAWN_ROOK, side=Side.BLACK, state=1)),
+            (bitboard.TOKIN_WHITE, Figure(type=FigureType.TOKIN_LANCE, side=Side.WHITE, state=0)),
+            (bitboard.LANCE_WHITE, Figure(type=FigureType.TOKIN_LANCE, side=Side.WHITE, state=1)),
+            (bitboard.SILVER_WHITE, Figure(type=FigureType.SILVER_BISHOP, side=Side.WHITE, state=0)),
+            (bitboard.BISHOP_WHITE, Figure(type=FigureType.SILVER_BISHOP, side=Side.WHITE, state=1)),
+            (bitboard.KING_WHITE, Figure(type=FigureType.KING, side=Side.WHITE, state=0)),
+            (bitboard.GOLD_WHITE, Figure(type=FigureType.GOLD_KNIGHT, side=Side.WHITE, state=0)),
+            (bitboard.KNIGHT_WHITE, Figure(type=FigureType.GOLD_KNIGHT, side=Side.WHITE, state=1)),
+            (bitboard.PAWN_WHITE, Figure(type=FigureType.PAWN_ROOK, side=Side.WHITE, state=0)),
+            (bitboard.ROOK_WHITE, Figure(type=FigureType.PAWN_ROOK, side=Side.WHITE, state=1)),
+        ]
+        for bitboard_figure_index, figure in board_figures:
+            coords = self.get_figure_positions(figure)
+            bb[bitboard_figure_index] = bitboard.position_mask_from_coordinates(coords)
+
+        inv_figures_black = [
+            (bitboard.TOKIN_BLACK, FigureType.TOKIN_LANCE),
+            (bitboard.SILVER_BLACK, FigureType.SILVER_BISHOP),
+            (bitboard.KING_BLACK, FigureType.KING),
+            (bitboard.GOLD_BLACK, FigureType.GOLD_KNIGHT),
+            (bitboard.PAWN_BLACK, FigureType.PAWN_ROOK),
+        ]
+        inv_figures_white = [
+            (bitboard.TOKIN_WHITE, FigureType.TOKIN_LANCE),
+            (bitboard.SILVER_WHITE, FigureType.SILVER_BISHOP),
+            (bitboard.KING_WHITE, FigureType.KING),
+            (bitboard.GOLD_WHITE, FigureType.GOLD_KNIGHT),
+            (bitboard.PAWN_WHITE, FigureType.PAWN_ROOK),
+        ]
+        for bitboard_figure_index, figure_type in inv_figures_black:
+            count = self.inventory_black.get(figure_type, 0)
+            for _ in range(count):
+                bitboard.increase_inventory_count(bb, bitboard_figure_index)
+        for bitboard_figure_index, figure_type in inv_figures_white:
+            count = self.inventory_white.get(figure_type, 0)
+            for _ in range(count):
+                bitboard.increase_inventory_count(bb, bitboard_figure_index)
+
+        bb[bitboard.IS_BLACK_TURN] = self.turn == Side.BLACK
+        bitboard.update_masks(bb)
+        return bb
+
+    @classmethod
+    def from_bitboard(cls, bb: bitboard.Bitboard) -> Board:
+        board = Board.empty_board()
+
+        board_figures = [
+            (bitboard.TOKIN_BLACK, Figure(type=FigureType.TOKIN_LANCE, side=Side.BLACK, state=0)),
+            (bitboard.LANCE_BLACK, Figure(type=FigureType.TOKIN_LANCE, side=Side.BLACK, state=1)),
+            (bitboard.SILVER_BLACK, Figure(type=FigureType.SILVER_BISHOP, side=Side.BLACK, state=0)),
+            (bitboard.BISHOP_BLACK, Figure(type=FigureType.SILVER_BISHOP, side=Side.BLACK, state=1)),
+            (bitboard.KING_BLACK, Figure(type=FigureType.KING, side=Side.BLACK, state=0)),
+            (bitboard.GOLD_BLACK, Figure(type=FigureType.GOLD_KNIGHT, side=Side.BLACK, state=0)),
+            (bitboard.KNIGHT_BLACK, Figure(type=FigureType.GOLD_KNIGHT, side=Side.BLACK, state=1)),
+            (bitboard.PAWN_BLACK, Figure(type=FigureType.PAWN_ROOK, side=Side.BLACK, state=0)),
+            (bitboard.ROOK_BLACK, Figure(type=FigureType.PAWN_ROOK, side=Side.BLACK, state=1)),
+            (bitboard.TOKIN_WHITE, Figure(type=FigureType.TOKIN_LANCE, side=Side.WHITE, state=0)),
+            (bitboard.LANCE_WHITE, Figure(type=FigureType.TOKIN_LANCE, side=Side.WHITE, state=1)),
+            (bitboard.SILVER_WHITE, Figure(type=FigureType.SILVER_BISHOP, side=Side.WHITE, state=0)),
+            (bitboard.BISHOP_WHITE, Figure(type=FigureType.SILVER_BISHOP, side=Side.WHITE, state=1)),
+            (bitboard.KING_WHITE, Figure(type=FigureType.KING, side=Side.WHITE, state=0)),
+            (bitboard.GOLD_WHITE, Figure(type=FigureType.GOLD_KNIGHT, side=Side.WHITE, state=0)),
+            (bitboard.KNIGHT_WHITE, Figure(type=FigureType.GOLD_KNIGHT, side=Side.WHITE, state=1)),
+            (bitboard.PAWN_WHITE, Figure(type=FigureType.PAWN_ROOK, side=Side.WHITE, state=0)),
+            (bitboard.ROOK_WHITE, Figure(type=FigureType.PAWN_ROOK, side=Side.WHITE, state=1)),
+        ]
+        for bitboard_figure_index, figure in board_figures:
+            coords = bitboard.get_bits_coords(bb[bitboard_figure_index])
+            for i, j in coords:
+                board.cells[i][j] = figure
+
+        inv_figures_black = [
+            (bitboard.TOKIN_BLACK, FigureType.TOKIN_LANCE),
+            (bitboard.SILVER_BLACK, FigureType.SILVER_BISHOP),
+            (bitboard.KING_BLACK, FigureType.KING),
+            (bitboard.GOLD_BLACK, FigureType.GOLD_KNIGHT),
+            (bitboard.PAWN_BLACK, FigureType.PAWN_ROOK),
+        ]
+        inv_figures_white = [
+            (bitboard.TOKIN_WHITE, FigureType.TOKIN_LANCE),
+            (bitboard.SILVER_WHITE, FigureType.SILVER_BISHOP),
+            (bitboard.KING_WHITE, FigureType.KING),
+            (bitboard.GOLD_WHITE, FigureType.GOLD_KNIGHT),
+            (bitboard.PAWN_WHITE, FigureType.PAWN_ROOK),
+        ]
+        for bitboard_figure_index, figure_type in inv_figures_black:
+            board.inventory_black[figure_type] = bitboard.get_inventory_count(bb, bitboard_figure_index)
+        for bitboard_figure_index, figure_type in inv_figures_white:
+            board.inventory_white[figure_type] = bitboard.get_inventory_count(bb, bitboard_figure_index)
+
+        board.turn = Side.BLACK if bb[bitboard.IS_BLACK_TURN] else Side.WHITE
+        return board

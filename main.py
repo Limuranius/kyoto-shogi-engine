@@ -3,6 +3,7 @@ from Board import Board
 from Figure import Figure, FigureType, Side
 from Move import Move
 import speed_analyzer
+import bitboard
 
 import pandas as pd
 pd.set_option("display.max_columns", 1000)
@@ -77,6 +78,22 @@ def interactive():
         print(board)
 
 
+def bitboard_test():
+    board_str = """
+金金
+ ． 金v 玉v 銀v とv 
+飛v  ．  ．  ．  ． 
+歩v  ． 金v  ．  ． 
+ ．  ．  ．  ．  ． 
+ ．  ． 玉^  ．  ． 
+
+"""[1:]
+    board = Board.from_str(board_str, Side.WHITE)
+    bb = board.to_bitboard()
+    bitboard.Bitarray5x5.print(bb[bitboard.ATTACKS_WHITE])
+
+
 # interactive()
 # test1()
-tsume1()
+# tsume1()
+bitboard_test()

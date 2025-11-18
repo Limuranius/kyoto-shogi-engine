@@ -70,6 +70,11 @@ class Figure:
         figure_type, state = jp_to_type[ch]
         return Figure(figure_type, side=side, state=state)
 
+    def __eq__(self, other):
+        if other is None:
+            return False
+        return self.type == other.type and self.side == other.side and self.state == other.state
+
 
 # Ходы
 king_moves = {(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)}
