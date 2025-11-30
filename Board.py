@@ -5,6 +5,7 @@ import copy
 from collections import defaultdict
 from typing import Generator
 
+import bitboard.bitarray5x5
 import speed_analyzer
 from Figure import Figure, Side, FigureType
 from Move import Move
@@ -348,7 +349,7 @@ class Board:
         ]
         for bitboard_figure_index, figure in board_figures:
             coords = self.get_figure_positions(figure)
-            bb[bitboard_figure_index] = bitboard.position_mask_from_coordinates(coords)
+            bb[bitboard_figure_index] = bitboard.bitarray5x5.position_mask_from_coordinates(coords)
 
         inv_figures_black = [
             (bitboard.TOKIN_BLACK, FigureType.TOKIN_LANCE),
@@ -402,7 +403,7 @@ class Board:
             (bitboard.ROOK_WHITE, Figure(type=FigureType.PAWN_ROOK, side=Side.WHITE, state=1)),
         ]
         for bitboard_figure_index, figure in board_figures:
-            coords = bitboard.get_bits_coords(bb[bitboard_figure_index])
+            coords = bitboard.bitarray5x5.get_bits_coords(bb[bitboard_figure_index])
             for i, j in coords:
                 board.cells[i][j] = figure
 

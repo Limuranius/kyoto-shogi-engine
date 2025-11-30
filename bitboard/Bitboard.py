@@ -1,6 +1,7 @@
 import numpy as np
-
-from .utils import *
+import speed_analyzer
+from .bitarray5x5 import get_bit_coord, get_bits_coords, PositionBit, coord_to_bit
+from .attacks import *
 
 N_PUBLIC_FIELDS = 28  # number of fields in bitboard that we can access with named variable (public fields)
 N_FIELDS = N_PUBLIC_FIELDS + 25  # +25 integers for indices of figures in each cell
@@ -93,7 +94,6 @@ FLIP_FIGURE[PAWN_WHITE] = ROOK_WHITE
 FLIP_FIGURE[ROOK_WHITE] = PAWN_WHITE
 
 Bitboard = np.ndarray  # Bitboard, stored in uint32 array
-PositionBit = int
 BitboardIndex = int
 
 FIGURES_WITH_SHORT_ATTACK = {
@@ -151,26 +151,6 @@ def get_empty_bitboard() -> Bitboard:
     return np.zeros(N_FIELDS, dtype=np.uint32)
 
 
-def get_bit_coord(n: PositionBit) -> tuple[int, int]:
-    pos = np.bitwise_count(n - 1)
-    i = 4 - pos // 5
-    j = 4 - pos % 5
-    return i, j
-
-
-def get_bits_coords(n: int) -> list[tuple[int, int]]:
-    """Returns list of (i, j) coordinates of each bit in 5x5 grid"""
-    coords = []
-    while n:
-        lsb = n & -n  # least significant bit
-        pos = np.bitwise_count(lsb - 1).astype(np.uint32)
-        i = 4 - pos // 5
-        j = 4 - pos % 5
-        coords.append((i, j))
-        n ^= lsb  # remove lowest bit
-    return coords
-
-
 def get_figure_attack_mask(
         figure_index: int,
         figure_mask: int,
@@ -183,6 +163,7 @@ def get_figure_attack_mask(
         return FIGURES_WITH_LONG_ATTACK[figure_index](figure_mask, i, j)
 
 
+@speed_analyzer.add_to_watchlist
 def update_masks(bitboard: Bitboard) -> None:
     """Updates all masks of bitboard according to placement of pieces"""
     black_attacks_mask = 0
@@ -242,6 +223,7 @@ def decrease_inventory_count(
     bitboard[INVENTORY] -= 1 << INVENTORY_SHIFT[figure_index]
 
 
+@speed_analyzer.add_to_watchlist
 def make_move_fast(
         bitboard: Bitboard,
         prev_pos_bit: PositionBit,
@@ -270,6 +252,7 @@ def make_move_fast(
     return new_bitboard
 
 
+@speed_analyzer.add_to_watchlist
 def make_drop_fast(
         bitboard: Bitboard,
         drop_pos_bit: PositionBit,
@@ -285,23 +268,11 @@ def make_drop_fast(
     return new_bitboard
 
 
-def position_mask_from_coordinates(coords: list[tuple[int, int]]):
-    result = 0
-    for i, j in coords:
-        n_shifts = (4 - i) * 5 + (4 - j)
-        result |= 1 << n_shifts
-    return result
-
-
-def position_bit_from_coordinates(i: int, j: int) -> int:
-    n_shifts = (4 - i) * 5 + (4 - j)
-    return 1 << n_shifts
-
-
 def figure_at(bitboard: Bitboard, i: int, j: int) -> int:
     return bitboard[FIGURE_AT[i, j]]
 
 
+@speed_analyzer.add_to_watchlist
 def get_bitboard_moves(bitboard: Bitboard) -> tuple[np.ndarray, np.ndarray]:
     """
     Returns all possible moves of bitboard in two arrays:
@@ -325,10 +296,23 @@ def get_bitboard_moves(bitboard: Bitboard) -> tuple[np.ndarray, np.ndarray]:
     move_i = 0
     drop_i = 0
 
+    """
+    batch: BitboardBatch
+    
+    b = batch[TOKIN_BLACK]  - все позиции токинов
+    
+    lsb = -b & b
+    idx = np.bitwise_count(lsb - 1)
+    
+    # idx==32 - биты позиции закончились 
+    
+    FIGURE_ATTACKS[idx]  - на индексе 32 будет пустая маска
+    """
+
     # iterating all moves
     for figure_index in figures:
         for i, j in get_bits_coords(bitboard[figure_index]):
-            pos_bit = position_bit_from_coordinates(i, j)
+            pos_bit = coord_to_bit(i, j)
             attack_mask = get_figure_attack_mask(figure_index, bitboard[IS_OCCUPIED], i, j)
             attack_mask &= ~bitboard[friend_mask]  # removing friendly-fire attacks
             while attack_mask:  # iterating all bits of attack mask

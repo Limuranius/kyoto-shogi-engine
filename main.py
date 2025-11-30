@@ -1,3 +1,4 @@
+import bitboard.bitarray5x5
 import engine
 from Board import Board
 from Figure import Figure, FigureType, Side
@@ -90,7 +91,7 @@ def bitboard_test():
 """[1:]
     board = Board.from_str(board_str, Side.WHITE)
     bb = board.to_bitboard()
-    bitboard.Bitarray5x5.print(bb[bitboard.ATTACKS_WHITE])
+    bitboard.bitarray5x5.Bitarray5x5.print(bb[bitboard.ATTACKS_WHITE])
 
     print(bitboard.get_bitboard_moves(bb))
 

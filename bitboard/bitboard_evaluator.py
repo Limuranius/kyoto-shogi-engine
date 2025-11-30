@@ -1,7 +1,3 @@
-from collections.abc import Callable
-
-import numpy as np
-
 from .Bitboard import *
 import speed_analyzer
 
