@@ -1,7 +1,8 @@
 from typing import Generator
 
 import numpy as np
-from bitboard.bitarray5x5 import Bitarray5x5, get_main_diagonal_coords, get_secondary_diagonal_coords
+from .bitarray5x5 import Bitarray5x5, VectorizableInt
+from . import bitarray5x5
 
 
 
@@ -110,7 +111,7 @@ dim2 - diagonal figure positions represented as 5bit row
 MAIN_DIAGONAL_ATTACKS = np.zeros(shape=(5, 5, 32), dtype=np.uint32)
 for i in range(5):
     for j in range(5):
-        diagonal_cells = get_main_diagonal_coords(i, j)
+        diagonal_cells = bitarray5x5.get_main_diagonal_coords(i, j)
         bishop_i = diagonal_cells.index((i, j))
         for figure_mask_str in _get_binary_str_range(2 ** len(diagonal_cells)):
             figure_mask_str = list(figure_mask_str)
@@ -132,7 +133,7 @@ dim2 - diagonal figure positions represented as 5bit row
 SECONDARY_DIAGONAL_ATTACKS = np.zeros(shape=(5, 5, 32), dtype=np.uint32)
 for i in range(5):
     for j in range(5):
-        diagonal_cells = get_secondary_diagonal_coords(i, j)
+        diagonal_cells = bitarray5x5.get_secondary_diagonal_coords(i, j)
         bishop_i = diagonal_cells.index((i, j))
         for figure_mask_str in _get_binary_str_range(2 ** len(diagonal_cells)):
             figure_mask_str = list(figure_mask_str)
@@ -220,7 +221,50 @@ for i in range(5):
         PAWN_ATTACKS_WHITE[i, j] = _move_attack_to(PAWN_ATTACKS_WHITE_PATTERN, i, j)
 
 
-def get_rook_attacks(figure_mask: int, rook_i: int, rook_j: int) -> int:
+# Flat version of arrays of all attacks ================================
+
+ROOK_VERTICAL_ATTACKS_FLAT = np.zeros(shape=(25, 32), dtype=np.uint32)
+ROOK_HORIZONTAL_ATTACKS_FLAT = np.zeros(shape=(25, 32), dtype=np.uint32)
+MAIN_DIAGONAL_ATTACKS_FLAT = np.zeros(shape=(25, 32), dtype=np.uint32)
+SECONDARY_DIAGONAL_ATTACKS_FLAT = np.zeros(shape=(25, 32), dtype=np.uint32)
+LANCE_ATTACKS_BLACK_FLAT = np.zeros(shape=(25, 32), dtype=np.uint32)
+LANCE_ATTACKS_WHITE_FLAT = np.zeros(shape=(25, 32), dtype=np.uint32)
+
+GOLD_ATTACKS_BLACK_FLAT = np.zeros(shape=25, dtype=np.uint32)
+GOLD_ATTACKS_WHITE_FLAT = np.zeros(shape=25, dtype=np.uint32)
+SILVER_ATTACKS_BLACK_FLAT = np.zeros(shape=25, dtype=np.uint32)
+SILVER_ATTACKS_WHITE_FLAT = np.zeros(shape=25, dtype=np.uint32)
+KING_ATTACKS_FLAT = np.zeros(shape=25, dtype=np.uint32)
+KNIGHT_ATTACKS_BLACK_FLAT = np.zeros(shape=25, dtype=np.uint32)
+KNIGHT_ATTACKS_WHITE_FLAT = np.zeros(shape=25, dtype=np.uint32)
+PAWN_ATTACKS_BLACK_FLAT = np.zeros(shape=25, dtype=np.uint32)
+PAWN_ATTACKS_WHITE_FLAT = np.zeros(shape=25, dtype=np.uint32)
+
+for i in range(5):
+    for j in range(5):
+        ROOK_VERTICAL_ATTACKS_FLAT[bitarray5x5.coord_to_shift(i, j)] = ROOK_VERTICAL_ATTACKS[i, j]
+        ROOK_HORIZONTAL_ATTACKS_FLAT[bitarray5x5.coord_to_shift(i, j)] = ROOK_HORIZONTAL_ATTACKS[i, j]
+        MAIN_DIAGONAL_ATTACKS_FLAT[bitarray5x5.coord_to_shift(i, j)] = MAIN_DIAGONAL_ATTACKS[i, j]
+        SECONDARY_DIAGONAL_ATTACKS_FLAT[bitarray5x5.coord_to_shift(i, j)] = SECONDARY_DIAGONAL_ATTACKS[i, j]
+        LANCE_ATTACKS_BLACK_FLAT[bitarray5x5.coord_to_shift(i, j)] = LANCE_ATTACKS_BLACK[i, j]
+        LANCE_ATTACKS_WHITE_FLAT[bitarray5x5.coord_to_shift(i, j)] = LANCE_ATTACKS_WHITE[i, j]
+
+        GOLD_ATTACKS_BLACK_FLAT[bitarray5x5.coord_to_shift(i, j)] = GOLD_ATTACKS_BLACK[i, j]
+        GOLD_ATTACKS_WHITE_FLAT[bitarray5x5.coord_to_shift(i, j)] = GOLD_ATTACKS_WHITE[i, j]
+        SILVER_ATTACKS_BLACK_FLAT[bitarray5x5.coord_to_shift(i, j)] = SILVER_ATTACKS_BLACK[i, j]
+        SILVER_ATTACKS_WHITE_FLAT[bitarray5x5.coord_to_shift(i, j)] = SILVER_ATTACKS_WHITE[i, j]
+        KING_ATTACKS_FLAT[bitarray5x5.coord_to_shift(i, j)] = KING_ATTACKS[i, j]
+        KNIGHT_ATTACKS_BLACK_FLAT[bitarray5x5.coord_to_shift(i, j)] = KNIGHT_ATTACKS_BLACK[i, j]
+        KNIGHT_ATTACKS_WHITE_FLAT[bitarray5x5.coord_to_shift(i, j)] = KNIGHT_ATTACKS_WHITE[i, j]
+        PAWN_ATTACKS_BLACK_FLAT[bitarray5x5.coord_to_shift(i, j)] = PAWN_ATTACKS_BLACK[i, j]
+        PAWN_ATTACKS_WHITE_FLAT[bitarray5x5.coord_to_shift(i, j)] = PAWN_ATTACKS_WHITE[i, j]
+
+
+def get_rook_attacks(
+        figure_mask: VectorizableInt,
+        rook_i: VectorizableInt,
+        rook_j: VectorizableInt,
+) -> VectorizableInt:
     col_figure_mask = Bitarray5x5.get_column(figure_mask, rook_j)
     row_figure_mask = Bitarray5x5.get_row(figure_mask, rook_i)
     vert_attack_mask = ROOK_VERTICAL_ATTACKS[rook_i, rook_j, col_figure_mask]
@@ -228,19 +272,71 @@ def get_rook_attacks(figure_mask: int, rook_i: int, rook_j: int) -> int:
     return vert_attack_mask | horiz_attack_mask
 
 
-def get_bishop_attacks(figure_mask: int, bishop_i: int, bishop_j: int) -> int:
-    main_diag_figure_mask = Bitarray5x5.main_diagonal_to_row(figure_mask, bishop_i, bishop_j)
-    sec_diag_figure_mask = Bitarray5x5.secondary_diagonal_to_row(figure_mask, bishop_i, bishop_j)
+def get_rook_attacks_from_shift(
+        figure_mask: VectorizableInt,
+        shift: VectorizableInt,
+) -> VectorizableInt:
+    col_figure_masks = Bitarray5x5.get_column(figure_mask, bitarray5x5.shift_to_col(shift))
+    row_figure_masks = Bitarray5x5.get_row(figure_mask, bitarray5x5.shift_to_row(shift))
+    vert_attack_masks = ROOK_VERTICAL_ATTACKS_FLAT[shift, col_figure_masks]
+    horiz_attack_masks = ROOK_HORIZONTAL_ATTACKS_FLAT[shift, row_figure_masks]
+    return vert_attack_masks | horiz_attack_masks
+
+
+def get_bishop_attacks(
+        figure_mask: VectorizableInt,
+        bishop_i: VectorizableInt,
+        bishop_j: VectorizableInt,
+) -> VectorizableInt:
+    shift = bitarray5x5.coord_to_shift(bishop_i, bishop_j)
+    main_diag_figure_mask = Bitarray5x5.main_diagonal_to_row(figure_mask, shift)
+    sec_diag_figure_mask = Bitarray5x5.secondary_diagonal_to_row(figure_mask, shift)
     main_attack_mask = MAIN_DIAGONAL_ATTACKS[bishop_i, bishop_j, main_diag_figure_mask]
     sec_attack_mask = SECONDARY_DIAGONAL_ATTACKS[bishop_i, bishop_j, sec_diag_figure_mask]
     return main_attack_mask | sec_attack_mask
 
 
-def get_black_lance_attacks(figure_mask: int, lance_i: int, lance_j: int) -> int:
+def get_bishop_attacks_from_shift(
+        figure_mask: VectorizableInt,
+        shift: VectorizableInt,
+) -> VectorizableInt:
+    main_diag_figure_mask = Bitarray5x5.main_diagonal_to_row(figure_mask, shift)
+    sec_diag_figure_mask = Bitarray5x5.secondary_diagonal_to_row(figure_mask, shift)
+    main_attack_mask = MAIN_DIAGONAL_ATTACKS_FLAT[shift, main_diag_figure_mask]
+    sec_attack_mask = SECONDARY_DIAGONAL_ATTACKS_FLAT[shift, sec_diag_figure_mask]
+    return main_attack_mask | sec_attack_mask
+
+
+def get_black_lance_attacks(
+        figure_mask: VectorizableInt,
+        lance_i: VectorizableInt,
+        lance_j: VectorizableInt,
+) -> VectorizableInt:
     col_figure_mask = Bitarray5x5.get_column(figure_mask, lance_j)
     return LANCE_ATTACKS_BLACK[lance_i, lance_j, col_figure_mask]
 
 
-def get_white_lance_attacks(figure_mask: int, lance_i: int, lance_j: int) -> int:
+def get_black_lance_attacks_from_shift(
+        figure_mask: VectorizableInt,
+        shift: VectorizableInt,
+) -> VectorizableInt:
+    col_figure_mask = Bitarray5x5.get_column(figure_mask, bitarray5x5.shift_to_col(shift))
+    return LANCE_ATTACKS_BLACK_FLAT[shift, col_figure_mask]
+
+
+
+def get_white_lance_attacks(
+        figure_mask: VectorizableInt,
+        lance_i: VectorizableInt,
+        lance_j: VectorizableInt,
+) -> VectorizableInt:
     col_figure_mask = Bitarray5x5.get_column(figure_mask, lance_j)
     return LANCE_ATTACKS_WHITE[lance_i, lance_j, col_figure_mask]
+
+
+def get_white_lance_attacks_from_shift(
+        figure_mask: VectorizableInt,
+        shift: VectorizableInt,
+) -> VectorizableInt:
+    col_figure_mask = Bitarray5x5.get_column(figure_mask, bitarray5x5.shift_to_col(shift))
+    return LANCE_ATTACKS_WHITE_FLAT[shift, col_figure_mask]

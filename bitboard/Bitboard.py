@@ -111,13 +111,37 @@ FIGURES_WITH_SHORT_ATTACK = {
     PAWN_WHITE: PAWN_ATTACKS_WHITE,
 }
 
+FIGURES_WITH_SHORT_ATTACK_FLAT = {
+    TOKIN_BLACK: GOLD_ATTACKS_BLACK_FLAT,
+    SILVER_BLACK: SILVER_ATTACKS_BLACK_FLAT,
+    KING_BLACK: KING_ATTACKS_FLAT,
+    GOLD_BLACK: GOLD_ATTACKS_BLACK_FLAT,
+    KNIGHT_BLACK: KNIGHT_ATTACKS_BLACK_FLAT,
+    PAWN_BLACK: PAWN_ATTACKS_BLACK_FLAT,
+    TOKIN_WHITE: GOLD_ATTACKS_WHITE_FLAT,
+    SILVER_WHITE: SILVER_ATTACKS_WHITE_FLAT,
+    KING_WHITE: KING_ATTACKS_FLAT,
+    GOLD_WHITE: GOLD_ATTACKS_WHITE_FLAT,
+    KNIGHT_WHITE: KNIGHT_ATTACKS_WHITE_FLAT,
+    PAWN_WHITE: PAWN_ATTACKS_WHITE_FLAT,
+}
+
 FIGURES_WITH_LONG_ATTACK = {
     LANCE_BLACK: get_black_lance_attacks,
     BISHOP_BLACK: get_bishop_attacks,
     ROOK_BLACK: get_rook_attacks,
-    LANCE_WHITE: get_black_lance_attacks,
+    LANCE_WHITE: get_white_lance_attacks,
     BISHOP_WHITE: get_bishop_attacks,
     ROOK_WHITE: get_rook_attacks,
+}
+
+FIGURES_WITH_LONG_ATTACK_FLAT = {
+    LANCE_BLACK: get_black_lance_attacks_from_shift,
+    BISHOP_BLACK: get_bishop_attacks_from_shift,
+    ROOK_BLACK: get_rook_attacks_from_shift,
+    LANCE_WHITE: get_white_lance_attacks_from_shift,
+    BISHOP_WHITE: get_bishop_attacks_from_shift,
+    ROOK_WHITE: get_rook_attacks_from_shift,
 }
 
 IS_FIGURE_BLACK = [False] * 18
@@ -146,6 +170,7 @@ WHITE_FIGURE_INDICES = list(range(TOKIN_WHITE, ROOK_WHITE + 1))
 BLACK_DROP_FIGURE_INDICES = [TOKIN_BLACK, SILVER_BLACK, KING_BLACK, GOLD_BLACK, PAWN_BLACK]
 WHITE_DROP_FIGURE_INDICES = [TOKIN_WHITE, SILVER_WHITE, KING_WHITE, GOLD_WHITE, PAWN_WHITE]
 
+ALL_BITS = 0b11111_11111_11111_11111_11111
 
 def get_empty_bitboard() -> Bitboard:
     return np.zeros(N_FIELDS, dtype=np.uint32)
@@ -153,14 +178,24 @@ def get_empty_bitboard() -> Bitboard:
 
 def get_figure_attack_mask(
         figure_index: int,
-        figure_mask: int,
-        i: int,
-        j: int
-) -> int:
+        figure_mask: VectorizableInt,
+        i: VectorizableInt,
+        j: VectorizableInt,
+) -> VectorizableInt:
     if figure_index in FIGURES_WITH_SHORT_ATTACK:
         return FIGURES_WITH_SHORT_ATTACK[figure_index][i, j]
     else:
         return FIGURES_WITH_LONG_ATTACK[figure_index](figure_mask, i, j)
+
+def get_figure_attack_mask_from_shift(
+        figure_index: int,
+        figure_mask: VectorizableInt,
+        shift: VectorizableInt,
+) -> VectorizableInt:
+    if figure_index in FIGURES_WITH_SHORT_ATTACK_FLAT:
+        return FIGURES_WITH_SHORT_ATTACK_FLAT[figure_index][shift]
+    else:
+        return FIGURES_WITH_LONG_ATTACK_FLAT[figure_index](figure_mask, shift)
 
 
 @speed_analyzer.add_to_watchlist
@@ -172,7 +207,7 @@ def update_masks(bitboard: Bitboard) -> None:
     bitboard[IS_BLACK] = np.bitwise_or.reduce(bitboard[TOKIN_BLACK: TOKIN_WHITE])
     bitboard[IS_WHITE] = np.bitwise_or.reduce(bitboard[TOKIN_WHITE: ROOK_WHITE + 1])
     bitboard[IS_OCCUPIED] = bitboard[IS_BLACK] | bitboard[IS_WHITE]
-    bitboard[IS_EMPTY] = 0 ^ bitboard[IS_OCCUPIED]
+    bitboard[IS_EMPTY] = ALL_BITS ^ bitboard[IS_OCCUPIED]
 
     for figure_index in FIGURE_INDICES:
         position_mask = bitboard[figure_index]
@@ -202,6 +237,7 @@ def get_figure_index(
     return bitboard[FIGURE_AT[i, j]]
 
 
+# vectorizable
 def get_inventory_count(
         bitboard: Bitboard,
         figure_index: BitboardIndex,
@@ -295,19 +331,6 @@ def get_bitboard_moves(bitboard: Bitboard) -> tuple[np.ndarray, np.ndarray]:
     drops = np.zeros((25 * len(figures_to_drop), 2), dtype=np.uint32)
     move_i = 0
     drop_i = 0
-
-    """
-    batch: BitboardBatch
-    
-    b = batch[TOKIN_BLACK]  - все позиции токинов
-    
-    lsb = -b & b
-    idx = np.bitwise_count(lsb - 1)
-    
-    # idx==32 - биты позиции закончились 
-    
-    FIGURE_ATTACKS[idx]  - на индексе 32 будет пустая маска
-    """
 
     # iterating all moves
     for figure_index in figures:

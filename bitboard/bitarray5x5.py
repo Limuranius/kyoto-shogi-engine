@@ -2,7 +2,6 @@ import numpy as np
 
 import speed_analyzer
 
-
 VectorizableInt = int | np.ndarray
 
 
@@ -65,25 +64,29 @@ class Bitarray5x5:
         return (board >> (5 * (4 - row_i))) & ROWS[-1]
 
     @staticmethod
-    def main_diagonal_to_row(board: VectorizableInt, i: int, j: int) -> VectorizableInt:
+    def main_diagonal_to_row(board: VectorizableInt, shifts: VectorizableInt) -> VectorizableInt:
+        # Shifts of 5 cells in diagonal. 31 if cell out of bounds
+        s0, s1, s2, s3, s4 = MAIN_DIAGONAL_SHIFTS_FLAT[shifts]
+
         row = 0
-        bits_count = 0
-        for i, j in reversed(get_main_diagonal_coords(i, j)):
-            shift = coord_to_shift(i, j)
-            cell_bit = coord_to_bit(i, j)
-            row |= (board & cell_bit) >> (shift - bits_count)
-            bits_count += 1
+        row |= (board & (1 << s0)) >> (s0 - 0)
+        row |= (board & (1 << s1)) >> (s1 - 1)
+        row |= (board & (1 << s2)) >> (s2 - 2)
+        row |= (board & (1 << s3)) >> (s3 - 3)
+        row |= (board & (1 << s4)) >> (s4 - 4)
         return row
 
     @staticmethod
-    def secondary_diagonal_to_row(board: VectorizableInt, i: int, j: int) -> VectorizableInt:
+    def secondary_diagonal_to_row(board: VectorizableInt, shifts: VectorizableInt) -> VectorizableInt:
+        # Shifts of 5 cells in diagonal. 31 if cell out of bounds
+        s0, s1, s2, s3, s4 = MAIN_DIAGONAL_SHIFTS_FLAT[shifts]
+
         row = 0
-        bits_count = 0
-        for i, j in get_secondary_diagonal_coords(i, j):
-            shift = coord_to_shift(i, j)
-            cell_bit = coord_to_bit(i, j)
-            row |= (board & cell_bit) >> (shift - bits_count)
-            bits_count += 1
+        row |= (board & (1 << s0)) >> (s0 - 0)
+        row |= (board & (1 << s1)) >> (s1 - 1)
+        row |= (board & (1 << s2)) >> (s2 - 2)
+        row |= (board & (1 << s3)) >> (s3 - 3)
+        row |= (board & (1 << s4)) >> (s4 - 4)
         return row
 
     @staticmethod
@@ -186,11 +189,17 @@ def shift_to_row(shift: VectorizableInt) -> VectorizableInt:
     return 4 - (shift // 5)
 
 
-# Similar to get_main_diagonal_coords(i, j) and get_secondary_diagonal_coords(i, j)
-# But return array of 5 shifts of each cell in diagonal
-# Value 31 means cell is out of bounds
-MAIN_DIAGONAL_SHIFTS_FLAT = np.full(shape=(25, 5), dtype=np.uint32, fill_value=31)
-SECONDARY_DIAGONAL_SHIFTS_FLAT = np.full(shape=(25, 5), dtype=np.uint32, fill_value=31)
+"""
+Similar to get_main_diagonal_coords(i, j) and get_secondary_diagonal_coords(i, j)
+but returns array of 5 shifts of each cell in diagonal
+Value 32 means cell is out of bounds
+
+For example:
+MAIN_DIAGONAL_SHIFTS_FLAT[9] - shifts of main diagonal cells that passes through cell at shift 9 (i=3, j=0)
+MAIN_DIAGONAL_SHIFTS_FLAT[9] == [3, 9, 32, 32, 32]
+"""
+MAIN_DIAGONAL_SHIFTS_FLAT = np.full(shape=(25, 5), dtype=np.uint32, fill_value=32)
+SECONDARY_DIAGONAL_SHIFTS_FLAT = np.full(shape=(25, 5), dtype=np.uint32, fill_value=32)
 for i in range(5):
     for j in range(5):
         for ii, (diag_i, diag_j) in enumerate(reversed(get_main_diagonal_coords(i, j))):
