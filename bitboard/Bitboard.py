@@ -3,8 +3,9 @@ import speed_analyzer
 from .bitarray5x5 import get_bit_coord, get_bits_coords, PositionBit, coord_to_bit
 from .attacks import *
 
-N_PUBLIC_FIELDS = 28  # number of fields in bitboard that we can access with named variable (public fields)
-N_FIELDS = N_PUBLIC_FIELDS + 25  # +25 integers for indices of figures in each cell
+N_PUBLIC_FIELDS = 29  # number of fields in bitboard that we can access with named variable (public fields)
+EACH_CELL_FIGURE_INDEX_FIELDS = 25  # integers for indices of figures in each cell
+N_FIELDS = N_PUBLIC_FIELDS + EACH_CELL_FIGURE_INDEX_FIELDS
 (
     # 5x5 masks of figure positions stored in uint32
     TOKIN_BLACK,
@@ -45,10 +46,16 @@ N_FIELDS = N_PUBLIC_FIELDS + 25  # +25 integers for indices of figures in each c
 
     # black's turn flag. 1 or 0
     IS_BLACK_TURN,
+
+    # Index to throw garbage values into
+    TRASH,
 ) = range(N_PUBLIC_FIELDS)
 
 # for each (i, j) coordinate stores index of integer inside bitboard that stores index of figure in (i, j) cell
 FIGURE_AT = np.arange(N_PUBLIC_FIELDS, N_PUBLIC_FIELDS + 25, dtype=np.uint32).reshape((5, 5))
+FIGURE_AT_FLAT = np.zeros(33, dtype=np.uint32)
+FIGURE_AT_FLAT[0: 25] = np.arange(N_PUBLIC_FIELDS, N_PUBLIC_FIELDS + 25, dtype=np.uint32)[::-1]  # reversed, so shifts position matches with 2d position
+FIGURE_AT_FLAT[25:] = TRASH
 
 # How many bits need to be shifted in inventory to get figure count
 INVENTORY_SHIFT = np.zeros(18, dtype=int)
@@ -70,6 +77,7 @@ INVENTORY_SHIFT[GOLD_WHITE] = 24
 INVENTORY_SHIFT[KNIGHT_WHITE] = 24
 INVENTORY_SHIFT[PAWN_WHITE] = 27
 INVENTORY_SHIFT[ROOK_WHITE] = 27
+INVENTORY_SHIFT[TRASH] = 30
 INVENTORY_CLIP = 0b111
 
 # what figure index do we get when we flip figure
@@ -245,6 +253,7 @@ def get_inventory_count(
     return (bitboard[INVENTORY] >> INVENTORY_SHIFT[figure_index]) & INVENTORY_CLIP
 
 
+# vectorizable
 def increase_inventory_count(
         bitboard: Bitboard,
         figure_index: BitboardIndex,
@@ -252,6 +261,7 @@ def increase_inventory_count(
     bitboard[INVENTORY] += 1 << INVENTORY_SHIFT[figure_index]
 
 
+# vectorizable
 def decrease_inventory_count(
         bitboard: Bitboard,
         figure_index: BitboardIndex,

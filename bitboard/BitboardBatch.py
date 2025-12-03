@@ -1,7 +1,7 @@
 import numpy as np
 from .Bitboard import *
 
-BatchedBitboard = np.ndarray  # Array (bitboard_size, N), where N - number of bitboards, bitboard_size - size of bitboard
+BitboardBatch = np.ndarray  # Array (bitboard_size, N), where N - number of bitboards, bitboard_size - size of bitboard
 
 
 def bits_positions(numbers: np.ndarray, return_shifts=True):
@@ -40,7 +40,7 @@ def unrag_by_row(
     return np.split(filtered, split_points)  # Split into list of arrays
 
 
-def get_bitboards_moves(bitboards: BatchedBitboard) -> list[tuple[np.ndarray, np.ndarray]]:
+def get_bitboards_moves(bitboards: BitboardBatch) -> list[tuple[np.ndarray, np.ndarray]]:
     """
     Returns all possible moves of bitboards. For each board there are two arrays:
         first array - all moves on the board. Move is stored as three integers: old position, new position, and figure type.
@@ -132,3 +132,103 @@ def get_bitboards_moves(bitboards: BatchedBitboard) -> list[tuple[np.ndarray, np
     return list(zip(all_moves_by_board, all_drops_by_board))
 
 
+def update_batch_masks(bitboards: BitboardBatch) -> None:
+    """Updates all masks of bitboards according to placement of pieces"""
+    n_boards = bitboards.shape[1]
+    bitboards[IS_BLACK] = np.bitwise_or.reduce(bitboards[TOKIN_BLACK: TOKIN_WHITE], axis=0)
+    bitboards[IS_BLACK] = np.bitwise_or.reduce(bitboards[TOKIN_WHITE: ROOK_WHITE + 1], axis=0)
+    bitboards[IS_OCCUPIED] = bitboards[IS_BLACK] | bitboards[IS_WHITE]
+    bitboards[IS_EMPTY] = ALL_BITS ^ bitboards[IS_OCCUPIED]
+
+    black_attacks_mask = 0
+    white_attacks_mask = 0
+    for figure_index in FIGURE_INDICES:
+        shifts = bits_positions(bitboards[figure_index])  # shape = (n_boards, max_figure_count)
+        attack_mask = get_figure_attack_mask_from_shift(figure_index, bitboards[IS_OCCUPIED], shifts)  # same shape as shifts
+        full_attack_mask = np.bitwise_or.reduce(attack_mask, axis=1)
+
+        if IS_FIGURE_BLACK[figure_index]:
+            black_attacks_mask |= full_attack_mask  # add attack to total mask
+        else:
+            white_attacks_mask |= full_attack_mask
+
+        # Setting all selected indices to figure type
+        bitboards[np.arange(n_boards)[:, None], FIGURE_AT_FLAT[shifts]] = figure_index
+
+    bitboards[ATTACKS_FF_BLACK] = black_attacks_mask
+    bitboards[ATTACKS_FF_WHITE] = white_attacks_mask
+    bitboards[ATTACKS_BLACK] = black_attacks_mask & ~bitboards[IS_BLACK]
+    bitboards[ATTACKS_WHITE] = white_attacks_mask & ~bitboards[IS_WHITE]
+
+
+def make_moves_fast(
+        bitboard: Bitboard,
+        prev_pos_bit: np.ndarray,
+        new_pos_bit: np.ndarray,
+        figure_index: np.ndarray,
+) -> BitboardBatch:
+    """
+    prev_pos_bit - bit on the board, where piece was before the move
+    new_pos_bit - bit on the board, where piece was after the move
+
+    Assumptions for input (not checked in this function):
+        Previous figure position is not empty
+        Previous figure color matches current turn
+
+    Does NOT perform update on batch of boards. Update needs to be performed somewhere else
+    """
+    n_moves = len(prev_pos_bit)
+    batch = np.repeat(
+        bitboard[:, None],
+        repeats=n_moves,
+        axis=1
+    )
+    idx = np.arange(n_moves)
+
+    batch[FLIP_FIGURE[figure_index], idx] |= new_pos_bit
+    batch[figure_index, idx] ^= prev_pos_bit
+
+    # Increasing inventory count for moves that were takes
+    take_mask = (batch[IS_OCCUPIED] & new_pos_bit).astype(bool)
+    new_shifts = bitarray5x5.bit_to_shift(new_pos_bit)
+    taken_figure_index = batch[FIGURE_AT_FLAT[new_shifts], idx]
+    taken_figure_index[~take_mask] = TRASH  # will be adding +1 to trash for all non-take moves
+    increase_inventory_count(batch, taken_figure_index)
+    batch[taken_figure_index, idx] ^= new_pos_bit  # remove taken piece
+
+    # Flipping turn
+    batch[IS_BLACK_TURN] = ~batch[IS_BLACK_TURN].astype(bool)
+
+    return batch
+
+
+def make_drops_fast(
+        bitboard: Bitboard,
+        drop_pos_bit: np.ndarray,
+        figure_index: np.ndarray,
+) -> BitboardBatch:
+    n_moves = len(drop_pos_bit)
+    batch = np.repeat(
+        bitboard[:, None],
+        repeats=n_moves,
+        axis=1
+    )
+    idx = np.arange(n_moves)
+
+    batch[figure_index, idx] |= drop_pos_bit
+    decrease_inventory_count(bitboard, figure_index)
+    batch[IS_BLACK_TURN] = ~batch[IS_BLACK_TURN].astype(bool)
+
+    return batch
+
+
+def make_batch_moves_and_drops(
+        bitboards: BitboardBatch,
+        moves_and_drops: list[tuple[np.ndarray, np.ndarray]],
+) -> BitboardBatch:
+    new_bitboards = []
+    for i, (moves, drops) in enumerate(moves_and_drops):
+        bitboard = bitboards[:, i]
+        new_bitboards.append(make_moves_fast(bitboard, *moves.T))
+        new_bitboards.append(make_drops_fast(bitboard, *drops.T))
+    return np.concat(new_bitboards, axis=1)

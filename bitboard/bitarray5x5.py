@@ -188,6 +188,8 @@ def shift_to_col(shift: VectorizableInt) -> VectorizableInt:
 def shift_to_row(shift: VectorizableInt) -> VectorizableInt:
     return 4 - (shift // 5)
 
+def bit_to_shift(bit: VectorizableInt) -> VectorizableInt:
+    return np.bitwise_count(bit - 1)
 
 """
 Similar to get_main_diagonal_coords(i, j) and get_secondary_diagonal_coords(i, j)
