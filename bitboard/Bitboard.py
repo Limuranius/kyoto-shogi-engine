@@ -58,7 +58,7 @@ FIGURE_AT_FLAT[0: 25] = np.arange(N_PUBLIC_FIELDS, N_PUBLIC_FIELDS + 25, dtype=n
 FIGURE_AT_FLAT[25:] = TRASH
 
 # How many bits need to be shifted in inventory to get figure count
-INVENTORY_SHIFT = np.zeros(18, dtype=int)
+INVENTORY_SHIFT = np.zeros(50, dtype=np.uint32)
 INVENTORY_SHIFT[TOKIN_BLACK] = 0
 INVENTORY_SHIFT[LANCE_BLACK] = 0
 INVENTORY_SHIFT[SILVER_BLACK] = 3
@@ -81,7 +81,7 @@ INVENTORY_SHIFT[TRASH] = 30
 INVENTORY_CLIP = 0b111
 
 # what figure index do we get when we flip figure
-FLIP_FIGURE = np.zeros(18, dtype=int)
+FLIP_FIGURE = np.zeros(18, dtype=np.uint32)
 FLIP_FIGURE[TOKIN_BLACK] = LANCE_BLACK
 FLIP_FIGURE[LANCE_BLACK] = TOKIN_BLACK
 FLIP_FIGURE[SILVER_BLACK] = BISHOP_BLACK
@@ -200,6 +200,7 @@ def get_figure_attack_mask_from_shift(
         figure_mask: VectorizableInt,
         shift: VectorizableInt,
 ) -> VectorizableInt:
+    assert figure_mask.shape == shift.shape
     if figure_index in FIGURES_WITH_SHORT_ATTACK_FLAT:
         return FIGURES_WITH_SHORT_ATTACK_FLAT[figure_index][shift]
     else:

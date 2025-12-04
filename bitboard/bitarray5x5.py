@@ -66,7 +66,12 @@ class Bitarray5x5:
     @staticmethod
     def main_diagonal_to_row(board: VectorizableInt, shifts: VectorizableInt) -> VectorizableInt:
         # Shifts of 5 cells in diagonal. 31 if cell out of bounds
-        s0, s1, s2, s3, s4 = MAIN_DIAGONAL_SHIFTS_FLAT[shifts]
+        diag_shifts = MAIN_DIAGONAL_SHIFTS_FLAT[shifts]
+        s0 = diag_shifts[..., 0]
+        s1 = diag_shifts[..., 1]
+        s2 = diag_shifts[..., 2]
+        s3 = diag_shifts[..., 3]
+        s4 = diag_shifts[..., 4]
 
         row = 0
         row |= (board & (1 << s0)) >> (s0 - 0)
@@ -79,7 +84,12 @@ class Bitarray5x5:
     @staticmethod
     def secondary_diagonal_to_row(board: VectorizableInt, shifts: VectorizableInt) -> VectorizableInt:
         # Shifts of 5 cells in diagonal. 31 if cell out of bounds
-        s0, s1, s2, s3, s4 = MAIN_DIAGONAL_SHIFTS_FLAT[shifts]
+        diag_shifts = SECONDARY_DIAGONAL_SHIFTS_FLAT[shifts]
+        s0 = diag_shifts[..., 0]
+        s1 = diag_shifts[..., 1]
+        s2 = diag_shifts[..., 2]
+        s3 = diag_shifts[..., 3]
+        s4 = diag_shifts[..., 4]
 
         row = 0
         row |= (board & (1 << s0)) >> (s0 - 0)
@@ -200,8 +210,8 @@ For example:
 MAIN_DIAGONAL_SHIFTS_FLAT[9] - shifts of main diagonal cells that passes through cell at shift 9 (i=3, j=0)
 MAIN_DIAGONAL_SHIFTS_FLAT[9] == [3, 9, 32, 32, 32]
 """
-MAIN_DIAGONAL_SHIFTS_FLAT = np.full(shape=(25, 5), dtype=np.uint32, fill_value=32)
-SECONDARY_DIAGONAL_SHIFTS_FLAT = np.full(shape=(25, 5), dtype=np.uint32, fill_value=32)
+MAIN_DIAGONAL_SHIFTS_FLAT = np.full(shape=(33, 5), dtype=np.uint32, fill_value=32)
+SECONDARY_DIAGONAL_SHIFTS_FLAT = np.full(shape=(33, 5), dtype=np.uint32, fill_value=32)
 for i in range(5):
     for j in range(5):
         for ii, (diag_i, diag_j) in enumerate(reversed(get_main_diagonal_coords(i, j))):

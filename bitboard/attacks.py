@@ -223,22 +223,22 @@ for i in range(5):
 
 # Flat version of arrays of all attacks ================================
 
-ROOK_VERTICAL_ATTACKS_FLAT = np.zeros(shape=(25, 32), dtype=np.uint32)
-ROOK_HORIZONTAL_ATTACKS_FLAT = np.zeros(shape=(25, 32), dtype=np.uint32)
-MAIN_DIAGONAL_ATTACKS_FLAT = np.zeros(shape=(25, 32), dtype=np.uint32)
-SECONDARY_DIAGONAL_ATTACKS_FLAT = np.zeros(shape=(25, 32), dtype=np.uint32)
-LANCE_ATTACKS_BLACK_FLAT = np.zeros(shape=(25, 32), dtype=np.uint32)
-LANCE_ATTACKS_WHITE_FLAT = np.zeros(shape=(25, 32), dtype=np.uint32)
+ROOK_VERTICAL_ATTACKS_FLAT = np.zeros(shape=(33, 32), dtype=np.uint32)
+ROOK_HORIZONTAL_ATTACKS_FLAT = np.zeros(shape=(33, 32), dtype=np.uint32)
+MAIN_DIAGONAL_ATTACKS_FLAT = np.zeros(shape=(33, 32), dtype=np.uint32)
+SECONDARY_DIAGONAL_ATTACKS_FLAT = np.zeros(shape=(33, 32), dtype=np.uint32)
+LANCE_ATTACKS_BLACK_FLAT = np.zeros(shape=(33, 32), dtype=np.uint32)
+LANCE_ATTACKS_WHITE_FLAT = np.zeros(shape=(33, 32), dtype=np.uint32)
 
-GOLD_ATTACKS_BLACK_FLAT = np.zeros(shape=25, dtype=np.uint32)
-GOLD_ATTACKS_WHITE_FLAT = np.zeros(shape=25, dtype=np.uint32)
-SILVER_ATTACKS_BLACK_FLAT = np.zeros(shape=25, dtype=np.uint32)
-SILVER_ATTACKS_WHITE_FLAT = np.zeros(shape=25, dtype=np.uint32)
-KING_ATTACKS_FLAT = np.zeros(shape=25, dtype=np.uint32)
-KNIGHT_ATTACKS_BLACK_FLAT = np.zeros(shape=25, dtype=np.uint32)
-KNIGHT_ATTACKS_WHITE_FLAT = np.zeros(shape=25, dtype=np.uint32)
-PAWN_ATTACKS_BLACK_FLAT = np.zeros(shape=25, dtype=np.uint32)
-PAWN_ATTACKS_WHITE_FLAT = np.zeros(shape=25, dtype=np.uint32)
+GOLD_ATTACKS_BLACK_FLAT = np.zeros(shape=33, dtype=np.uint32)
+GOLD_ATTACKS_WHITE_FLAT = np.zeros(shape=33, dtype=np.uint32)
+SILVER_ATTACKS_BLACK_FLAT = np.zeros(shape=33, dtype=np.uint32)
+SILVER_ATTACKS_WHITE_FLAT = np.zeros(shape=33, dtype=np.uint32)
+KING_ATTACKS_FLAT = np.zeros(shape=33, dtype=np.uint32)
+KNIGHT_ATTACKS_BLACK_FLAT = np.zeros(shape=33, dtype=np.uint32)
+KNIGHT_ATTACKS_WHITE_FLAT = np.zeros(shape=33, dtype=np.uint32)
+PAWN_ATTACKS_BLACK_FLAT = np.zeros(shape=33, dtype=np.uint32)
+PAWN_ATTACKS_WHITE_FLAT = np.zeros(shape=33, dtype=np.uint32)
 
 for i in range(5):
     for j in range(5):

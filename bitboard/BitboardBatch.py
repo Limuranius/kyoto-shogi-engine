@@ -13,6 +13,7 @@ def bits_positions(numbers: np.ndarray, return_shifts=True):
     For example, 19 (0b10011) will be represented as [0, 1, 4]
     If number of bits is different in numbers, then extra bits will be padded at the end
     """
+    numbers = numbers.copy()
     max_bit_count = np.bitwise_count(numbers).max()
     # dtype = np.uint8 if return_shifts else numbers.dtype
     dtype = numbers.dtype
@@ -50,6 +51,7 @@ def get_bitboards_moves(bitboards: BitboardBatch) -> list[tuple[np.ndarray, np.n
 
     All bitboards have to have same turn color (white or black)
     """
+
     n_boards = bitboards.shape[1]
 
     figures = BLACK_FIGURE_INDICES
@@ -65,6 +67,7 @@ def get_bitboards_moves(bitboards: BitboardBatch) -> list[tuple[np.ndarray, np.n
 
     # iterating all moves
     for figure_index in figures:
+
         # get positions of figures in all boards
         shifts = bits_positions(bitboards[figure_index])  # shape = (n_boards, max_figure_count)
         if shifts.size == 0:  # there are no such figure through all boards
@@ -72,8 +75,12 @@ def get_bitboards_moves(bitboards: BitboardBatch) -> list[tuple[np.ndarray, np.n
         # get attack masks for all positions
         # value 32 in :shifts gets attack mask of 0
         # same shape as :shifts
-        attack_mask = get_figure_attack_mask_from_shift(figure_index, bitboards[IS_OCCUPIED], shifts)
-        attack_mask &= ~bitboards[friend_mask, None]  # removing friendly-fire attacks
+        attack_mask = get_figure_attack_mask_from_shift(
+            figure_index,
+            np.broadcast_to(bitboards[IS_OCCUPIED][:, None], shape=shifts.shape),
+            shifts
+        )
+        attack_mask &= ~bitboards[friend_mask, :, None]  # removing friendly-fire attacks
 
         # shape = (n_boards, max_figure_count, max_attacks_count)
         destination_bits = bits_positions(attack_mask, return_shifts=False)  # ending cell of move
@@ -85,7 +92,7 @@ def get_bitboards_moves(bitboards: BitboardBatch) -> list[tuple[np.ndarray, np.n
         moves = np.stack([
             np.broadcast_to(origin_bits[:, :, None], destination_bits.shape),  # origin
             destination_bits,  # destination
-            np.broadcast_to(figure_index, destination_bits.shape)  # figure index
+            np.broadcast_to(np.uint32(figure_index), destination_bits.shape)  # figure index
         ], axis=-1)
 
         # flattening extra dimensions
@@ -102,7 +109,11 @@ def get_bitboards_moves(bitboards: BitboardBatch) -> list[tuple[np.ndarray, np.n
             all_moves_by_board[i].append(moves_for_each_board[i])
 
     for i in range(n_boards):
-        all_moves_by_board[i] = np.concat(all_moves_by_board[i], axis=0)
+        if len(all_moves_by_board[i]) == 0:  # No moves on board
+            all_moves_by_board[i] = np.zeros((0, 2), dtype=np.uint32)
+        else:
+            all_moves_by_board[i] = np.concat(all_moves_by_board[i], axis=0)
+
 
 
     drop_destinations = bits_positions(bitboards[IS_EMPTY], return_shifts=False)  # shape = (n_boards, max_empty_count)
@@ -113,7 +124,7 @@ def get_bitboards_moves(bitboards: BitboardBatch) -> list[tuple[np.ndarray, np.n
         # shape = (n_boards, max_empty_count, 2)
         drops = np.stack([
             drop_destinations,  # drop destination
-            np.broadcast_to(figure_index, drop_destinations.shape)  # figure index
+            np.broadcast_to(np.uint32(figure_index), drop_destinations.shape)  # figure index
         ], axis=-1)
 
         valid_drop_mask = drops[:, :, 0] != 0  # If destination is zero then this drop is padding
@@ -127,7 +138,10 @@ def get_bitboards_moves(bitboards: BitboardBatch) -> list[tuple[np.ndarray, np.n
                 all_drops_by_board[i].append(drops_for_each_board[i])
 
     for i in range(n_boards):
-        all_drops_by_board[i] = np.concat(all_drops_by_board[i], axis=0)
+        if len(all_drops_by_board[i]) == 0:  # No drops on board
+            all_drops_by_board[i] = np.zeros((0, 2), dtype=np.uint32)
+        else:
+            all_drops_by_board[i] = np.concat(all_drops_by_board[i], axis=0)
 
     return list(zip(all_moves_by_board, all_drops_by_board))
 
@@ -144,7 +158,13 @@ def update_batch_masks(bitboards: BitboardBatch) -> None:
     white_attacks_mask = 0
     for figure_index in FIGURE_INDICES:
         shifts = bits_positions(bitboards[figure_index])  # shape = (n_boards, max_figure_count)
-        attack_mask = get_figure_attack_mask_from_shift(figure_index, bitboards[IS_OCCUPIED], shifts)  # same shape as shifts
+        if shifts.size == 0:  # there are no such figure through all boards
+            continue
+        attack_mask = get_figure_attack_mask_from_shift(
+            figure_index,
+            np.broadcast_to(bitboards[IS_OCCUPIED][:, None], shape=shifts.shape),
+            shifts
+        )  # same shape as shifts
         full_attack_mask = np.bitwise_or.reduce(attack_mask, axis=1)
 
         if IS_FIGURE_BLACK[figure_index]:
@@ -153,7 +173,7 @@ def update_batch_masks(bitboards: BitboardBatch) -> None:
             white_attacks_mask |= full_attack_mask
 
         # Setting all selected indices to figure type
-        bitboards[np.arange(n_boards)[:, None], FIGURE_AT_FLAT[shifts]] = figure_index
+        bitboards[FIGURE_AT_FLAT[shifts], np.arange(n_boards)[:, None]] = figure_index
 
     bitboards[ATTACKS_FF_BLACK] = black_attacks_mask
     bitboards[ATTACKS_FF_WHITE] = white_attacks_mask
@@ -216,7 +236,7 @@ def make_drops_fast(
     idx = np.arange(n_moves)
 
     batch[figure_index, idx] |= drop_pos_bit
-    decrease_inventory_count(bitboard, figure_index)
+    decrease_inventory_count(batch, figure_index)
     batch[IS_BLACK_TURN] = ~batch[IS_BLACK_TURN].astype(bool)
 
     return batch
@@ -231,4 +251,6 @@ def make_batch_moves_and_drops(
         bitboard = bitboards[:, i]
         new_bitboards.append(make_moves_fast(bitboard, *moves.T))
         new_bitboards.append(make_drops_fast(bitboard, *drops.T))
-    return np.concat(new_bitboards, axis=1)
+    new_bitboards = np.concat(new_bitboards, axis=1)
+    update_batch_masks(new_bitboards)
+    return new_bitboards
