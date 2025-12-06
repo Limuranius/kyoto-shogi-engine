@@ -1,7 +1,10 @@
-import numpy as np
 from .Bitboard import *
 
 BitboardBatch = np.ndarray  # Array (bitboard_size, N), where N - number of bitboards, bitboard_size - size of bitboard
+
+
+def bitboard_to_batch(bitboard: Bitboard):
+    return bitboard[None].T
 
 
 def bits_positions(numbers: np.ndarray, return_shifts=True):
@@ -114,8 +117,6 @@ def get_bitboards_moves(bitboards: BitboardBatch) -> list[tuple[np.ndarray, np.n
         else:
             all_moves_by_board[i] = np.concat(all_moves_by_board[i], axis=0)
 
-
-
     drop_destinations = bits_positions(bitboards[IS_EMPTY], return_shifts=False)  # shape = (n_boards, max_empty_count)
     for figure_index in figures_to_drop:
         hand_count = get_inventory_count(bitboards, figure_index)
@@ -148,9 +149,12 @@ def get_bitboards_moves(bitboards: BitboardBatch) -> list[tuple[np.ndarray, np.n
 
 def update_batch_masks(bitboards: BitboardBatch) -> None:
     """Updates all masks of bitboards according to placement of pieces"""
+    if bitboards.shape[1] == 0:  # empty batch
+        return
+
     n_boards = bitboards.shape[1]
     bitboards[IS_BLACK] = np.bitwise_or.reduce(bitboards[TOKIN_BLACK: TOKIN_WHITE], axis=0)
-    bitboards[IS_BLACK] = np.bitwise_or.reduce(bitboards[TOKIN_WHITE: ROOK_WHITE + 1], axis=0)
+    bitboards[IS_WHITE] = np.bitwise_or.reduce(bitboards[TOKIN_WHITE: ROOK_WHITE + 1], axis=0)
     bitboards[IS_OCCUPIED] = bitboards[IS_BLACK] | bitboards[IS_WHITE]
     bitboards[IS_EMPTY] = ALL_BITS ^ bitboards[IS_OCCUPIED]
 
@@ -213,7 +217,7 @@ def make_moves_fast(
     new_shifts = bitarray5x5.bit_to_shift(new_pos_bit)
     taken_figure_index = batch[FIGURE_AT_FLAT[new_shifts], idx]
     taken_figure_index[~take_mask] = TRASH  # will be adding +1 to trash for all non-take moves
-    increase_inventory_count(batch, taken_figure_index)
+    increase_inventory_count(batch, FLIP_COLOR[taken_figure_index])
     batch[taken_figure_index, idx] ^= new_pos_bit  # remove taken piece
 
     # Flipping turn
@@ -245,12 +249,22 @@ def make_drops_fast(
 def make_batch_moves_and_drops(
         bitboards: BitboardBatch,
         moves_and_drops: list[tuple[np.ndarray, np.ndarray]],
-) -> BitboardBatch:
+        concat: bool,
+) -> BitboardBatch | list[BitboardBatch]:
     new_bitboards = []
     for i, (moves, drops) in enumerate(moves_and_drops):
         bitboard = bitboards[:, i]
         new_bitboards.append(make_moves_fast(bitboard, *moves.T))
         new_bitboards.append(make_drops_fast(bitboard, *drops.T))
-    new_bitboards = np.concat(new_bitboards, axis=1)
-    update_batch_masks(new_bitboards)
-    return new_bitboards
+    if concat:
+        new_bitboards = np.concat(new_bitboards, axis=1)
+        update_batch_masks(new_bitboards)
+        return new_bitboards
+    else:
+        result = []
+        # concatenating moves and drops for each board separately
+        for i in range(0, len(new_bitboards), 2):
+            boards = np.concat(new_bitboards[i: i + 2], axis=1)
+            update_batch_masks(boards)
+            result.append(boards)
+        return result

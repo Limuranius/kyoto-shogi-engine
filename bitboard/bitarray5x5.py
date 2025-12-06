@@ -36,6 +36,18 @@ class Bitarray5x5:
             print(bin_str[i * 5: (i + 1) * 5])
 
     @staticmethod
+    def pretty_print(n: int):
+        empty = "░░"
+        occupied = "██"
+        bin_str = bin(n)[2:]
+        bin_str = bin_str.zfill(25)  # fill leading zeros if len < 25
+        for i in range(5):
+            s = bin_str[i * 5: (i + 1) * 5]
+            s = s.replace("1", occupied)
+            s = s.replace("0", empty)
+            print(s)
+
+    @staticmethod
     def row_to_column(row: VectorizableInt, col_j: VectorizableInt) -> VectorizableInt:
         """
         Rotates :row (5 bits integer) 90 degrees to 5x5 bitarray column placed at index :col_j

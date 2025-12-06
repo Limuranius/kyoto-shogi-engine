@@ -1,7 +1,6 @@
-import numpy as np
 import speed_analyzer
-from .bitarray5x5 import get_bit_coord, get_bits_coords, PositionBit, coord_to_bit
 from .attacks import *
+from .bitarray5x5 import get_bit_coord, get_bits_coords, PositionBit, coord_to_bit
 
 N_PUBLIC_FIELDS = 29  # number of fields in bitboard that we can access with named variable (public fields)
 EACH_CELL_FIGURE_INDEX_FIELDS = 25  # integers for indices of figures in each cell
@@ -54,7 +53,8 @@ N_FIELDS = N_PUBLIC_FIELDS + EACH_CELL_FIGURE_INDEX_FIELDS
 # for each (i, j) coordinate stores index of integer inside bitboard that stores index of figure in (i, j) cell
 FIGURE_AT = np.arange(N_PUBLIC_FIELDS, N_PUBLIC_FIELDS + 25, dtype=np.uint32).reshape((5, 5))
 FIGURE_AT_FLAT = np.zeros(33, dtype=np.uint32)
-FIGURE_AT_FLAT[0: 25] = np.arange(N_PUBLIC_FIELDS, N_PUBLIC_FIELDS + 25, dtype=np.uint32)[::-1]  # reversed, so shifts position matches with 2d position
+FIGURE_AT_FLAT[0: 25] = np.arange(N_PUBLIC_FIELDS, N_PUBLIC_FIELDS + 25, dtype=np.uint32)[
+                        ::-1]  # reversed, so shifts position matches with 2d position
 FIGURE_AT_FLAT[25:] = TRASH
 
 # How many bits need to be shifted in inventory to get figure count
@@ -100,6 +100,27 @@ FLIP_FIGURE[GOLD_WHITE] = KNIGHT_WHITE
 FLIP_FIGURE[KNIGHT_WHITE] = GOLD_WHITE
 FLIP_FIGURE[PAWN_WHITE] = ROOK_WHITE
 FLIP_FIGURE[ROOK_WHITE] = PAWN_WHITE
+
+FLIP_COLOR = np.zeros(50, dtype=np.uint32)
+FLIP_COLOR[TOKIN_BLACK] = TOKIN_WHITE
+FLIP_COLOR[LANCE_BLACK] = LANCE_WHITE
+FLIP_COLOR[SILVER_BLACK] = SILVER_WHITE
+FLIP_COLOR[BISHOP_BLACK] = BISHOP_WHITE
+FLIP_COLOR[KING_BLACK] = KING_WHITE
+FLIP_COLOR[GOLD_BLACK] = GOLD_WHITE
+FLIP_COLOR[KNIGHT_BLACK] = KNIGHT_WHITE
+FLIP_COLOR[PAWN_BLACK] = PAWN_WHITE
+FLIP_COLOR[ROOK_BLACK] = ROOK_WHITE
+FLIP_COLOR[TOKIN_WHITE] = TOKIN_BLACK
+FLIP_COLOR[LANCE_WHITE] = LANCE_BLACK
+FLIP_COLOR[SILVER_WHITE] = SILVER_BLACK
+FLIP_COLOR[BISHOP_WHITE] = BISHOP_BLACK
+FLIP_COLOR[KING_WHITE] = KING_BLACK
+FLIP_COLOR[GOLD_WHITE] = GOLD_BLACK
+FLIP_COLOR[KNIGHT_WHITE] = KNIGHT_BLACK
+FLIP_COLOR[PAWN_WHITE] = PAWN_BLACK
+FLIP_COLOR[ROOK_WHITE] = ROOK_BLACK
+FLIP_COLOR[TRASH] = TRASH
 
 Bitboard = np.ndarray  # Bitboard, stored in uint32 array
 BitboardIndex = int
@@ -180,6 +201,7 @@ WHITE_DROP_FIGURE_INDICES = [TOKIN_WHITE, SILVER_WHITE, KING_WHITE, GOLD_WHITE, 
 
 ALL_BITS = 0b11111_11111_11111_11111_11111
 
+
 def get_empty_bitboard() -> Bitboard:
     return np.zeros(N_FIELDS, dtype=np.uint32)
 
@@ -194,6 +216,7 @@ def get_figure_attack_mask(
         return FIGURES_WITH_SHORT_ATTACK[figure_index][i, j]
     else:
         return FIGURES_WITH_LONG_ATTACK[figure_index](figure_mask, i, j)
+
 
 def get_figure_attack_mask_from_shift(
         figure_index: int,
@@ -291,7 +314,7 @@ def make_move_fast(
     new_bitboard[figure_index] ^= prev_pos_bit
     if not (new_bitboard[IS_EMPTY] & new_pos_bit):  # opponent's piece is taken
         taken_figure_index = get_figure_index(new_bitboard, new_pos_bit)
-        increase_inventory_count(new_bitboard, taken_figure_index)  # increase inventory count
+        increase_inventory_count(new_bitboard, FLIP_COLOR[taken_figure_index])  # increase inventory count of opposite color
         new_bitboard[taken_figure_index] ^= new_pos_bit  # remove taken piece
     new_bitboard[IS_BLACK_TURN] = int(not new_bitboard[IS_BLACK_TURN])
 
@@ -368,3 +391,64 @@ def get_bitboard_moves(bitboard: Bitboard) -> tuple[np.ndarray, np.ndarray]:
         drop_mask ^= drop_pos  # set bit to zero
 
     return moves[:move_i], drops[:drop_i]
+
+
+constant_to_name = {
+    TOKIN_BLACK: "TOKIN_BLACK",
+    LANCE_BLACK: "LANCE_BLACK",
+    SILVER_BLACK: "SILVER_BLACK",
+    BISHOP_BLACK: "BISHOP_BLACK",
+    KING_BLACK: "KING_BLACK",
+    GOLD_BLACK: "GOLD_BLACK",
+    KNIGHT_BLACK: "KNIGHT_BLACK",
+    PAWN_BLACK: "PAWN_BLACK",
+    ROOK_BLACK: "ROOK_BLACK",
+    TOKIN_WHITE: "TOKIN_WHITE",
+    LANCE_WHITE: "LANCE_WHITE",
+    SILVER_WHITE: "SILVER_WHITE",
+    BISHOP_WHITE: "BISHOP_WHITE",
+    KING_WHITE: "KING_WHITE",
+    GOLD_WHITE: "GOLD_WHITE",
+    KNIGHT_WHITE: "KNIGHT_WHITE",
+    PAWN_WHITE: "PAWN_WHITE",
+    ROOK_WHITE: "ROOK_WHITE",
+
+    INVENTORY: "INVENTORY",
+
+    ATTACKS_BLACK: "ATTACKS_BLACK",
+    ATTACKS_WHITE: "ATTACKS_WHITE",
+
+    ATTACKS_FF_BLACK: "ATTACKS_FF_BLACK",
+    ATTACKS_FF_WHITE: "ATTACKS_FF_WHITE",
+
+    IS_BLACK: "IS_BLACK",
+    IS_WHITE: "IS_WHITE",
+    IS_EMPTY: "IS_EMPTY",
+    IS_OCCUPIED: "IS_OCCUPIED",
+
+    IS_BLACK_TURN: "IS_BLACK_TURN",
+
+    TRASH: "TRASH",
+}
+
+
+def diagnostic(bitboard: Bitboard):
+    print("=" * 30, "Figures positions", "=" * 30)
+    for i in range(TOKIN_BLACK, ROOK_WHITE + 1):
+        print(constant_to_name[i])
+        bitarray5x5.Bitarray5x5.pretty_print(bitboard[i])
+        print()
+    print("=" * 80)
+
+    print("INVENTORY")
+    print(bin(bitboard[INVENTORY])[2:].zfill(32))
+
+    for i in [ATTACKS_BLACK, ATTACKS_WHITE, ATTACKS_FF_BLACK,
+              ATTACKS_FF_WHITE, IS_BLACK, IS_WHITE, IS_EMPTY, IS_OCCUPIED]:
+        print(constant_to_name[i])
+        bitarray5x5.Bitarray5x5.pretty_print(bitboard[i])
+        print()
+
+    print("=" * 30, "Figure in each cell", "=" * 30)
+    for i in FIGURE_AT_FLAT:
+        print(constant_to_name[int(bitboard[i])])

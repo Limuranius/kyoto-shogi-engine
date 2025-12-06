@@ -1,6 +1,6 @@
 from .Bitboard import *
-import speed_analyzer
-
+from .BitboardBatch import BitboardBatch
+from .bitarray5x5 import bit_to_shift
 
 INVENTORY_COST = np.zeros(18, dtype=float)
 INVENTORY_COST[TOKIN_BLACK] = 1.0
@@ -22,7 +22,6 @@ INVENTORY_COST[KNIGHT_WHITE] = 1.0
 INVENTORY_COST[PAWN_WHITE] = 1.0
 INVENTORY_COST[ROOK_WHITE] = 1.0
 
-
 BOARD_COST = np.zeros(18, dtype=float)
 BOARD_COST[TOKIN_BLACK] = 1.0
 BOARD_COST[LANCE_BLACK] = 1.0
@@ -43,19 +42,17 @@ BOARD_COST[KNIGHT_WHITE] = 1.0
 BOARD_COST[PAWN_WHITE] = 1.0
 BOARD_COST[ROOK_WHITE] = 1.0
 
-
 ATTACK_COUNT_WEIGHT = 1.0
 DEFENCE_COUNT_WEIGHT = 1.0
 KING_DEFENCE_COUNT_WEIGHT = 3.0
 KING_ATTACK_COUNT_WEIGHT = 3.0
-
 
 BLACK = 1
 WHITE = 0
 
 
 class BitboardEvaluator:
-    def evaluate_board(self, bitboard: Bitboard) -> float:
+    def evaluate_board(self, bitboard: Bitboard | BitboardBatch) -> float | np.ndarray:
         methods = [
             (self._inventory_cost, 1.0),
             (self._board_cost, 1.0),
@@ -72,7 +69,7 @@ class BitboardEvaluator:
         return total_score
 
     @speed_analyzer.add_to_watchlist
-    def _inventory_cost(self, bitboard: Bitboard, side: int) -> float:
+    def _inventory_cost(self, bitboard: Bitboard | BitboardBatch, side: int) -> float | np.ndarray:
         """Cost of pieces in inventory"""
         score = 0.0
         if side == BLACK:
@@ -85,7 +82,7 @@ class BitboardEvaluator:
         return score
 
     @speed_analyzer.add_to_watchlist
-    def _board_cost(self, bitboard: Bitboard, side: int) -> float:
+    def _board_cost(self, bitboard: Bitboard | BitboardBatch, side: int) -> float | np.ndarray:
         """Cost of pieces on board"""
         score = 0.0
 
@@ -95,13 +92,13 @@ class BitboardEvaluator:
             figures = WHITE_FIGURE_INDICES
 
         for fig in figures:
-            # count = np.bitwise_count(bitboard[fig])
-            count = int(bitboard[fig]).bit_count()
+            count = np.bitwise_count(bitboard[fig])
+            # count = int(bitboard[fig]).bit_count()
             score += count * BOARD_COST[fig]
         return score
 
     @speed_analyzer.add_to_watchlist
-    def _attack_count(self, bitboard: Bitboard, side: int) -> float:
+    def _attack_count(self, bitboard: Bitboard | BitboardBatch, side: int) -> float | np.ndarray:
         """Count of attacks on cells. If two pieces attack same cell then this counts as 2"""
         if side == BLACK:
             return np.bitwise_count(bitboard[ATTACKS_BLACK])
@@ -109,7 +106,7 @@ class BitboardEvaluator:
             return np.bitwise_count(bitboard[ATTACKS_WHITE])
 
     @speed_analyzer.add_to_watchlist
-    def _defence_count(self, bitboard: Bitboard, side: int) -> float:
+    def _defence_count(self, bitboard: Bitboard | BitboardBatch, side: int) -> float | np.ndarray:
         """Count of defences of friendly pieces. If two pieces defend same cell then this counts as 2"""
         if side == BLACK:
             return np.bitwise_count(bitboard[ATTACKS_BLACK] ^ bitboard[ATTACKS_FF_BLACK])
@@ -117,7 +114,7 @@ class BitboardEvaluator:
             return np.bitwise_count(bitboard[ATTACKS_WHITE] ^ bitboard[ATTACKS_FF_WHITE])
 
     @speed_analyzer.add_to_watchlist
-    def _king_defence_count(self, bitboard: Bitboard, side: int) -> float:
+    def _king_defence_count(self, bitboard: Bitboard | BitboardBatch, side: int) -> float | np.ndarray:
         """Count of defenced cells around king"""
         if side == BLACK:
             king = KING_BLACK
@@ -127,20 +124,18 @@ class BitboardEvaluator:
             king = KING_WHITE
             attacks = ATTACKS_WHITE
             attacks_ff = ATTACKS_FF_WHITE
-        if bitboard[king] == 0:  # king not on the board
-            return 0.0
-        i, j = get_bit_coord(bitboard[king])
-        king_surroundings = get_figure_attack_mask(
+        king_on_board_mask = bitboard[king] != 0
+        king_shift = bit_to_shift(bitboard[king])
+        king_surroundings = get_figure_attack_mask_from_shift(
             figure_index=king,
             figure_mask=bitboard[IS_OCCUPIED],
-            i=i,
-            j=j,
+            shift=king_shift,
         )
         defence_mask = bitboard[attacks] ^ bitboard[attacks_ff]
-        return np.bitwise_count(king_surroundings & defence_mask)
+        return king_on_board_mask * np.bitwise_count(king_surroundings & defence_mask)
 
     @speed_analyzer.add_to_watchlist
-    def _king_attack_count(self, bitboard: Bitboard, side: int) -> float:
+    def _king_attack_count(self, bitboard: Bitboard | BitboardBatch, side: int) -> float | np.ndarray:
         """Count of attacked cells around king"""
         if side == BLACK:
             king = KING_BLACK
@@ -148,14 +143,12 @@ class BitboardEvaluator:
         else:
             king = KING_WHITE
             opposite_attacks = ATTACKS_BLACK
-        if bitboard[king] == 0:  # king not on the board
-            return 0.0
 
-        i, j = get_bit_coord(bitboard[king])
-        king_surroundings = get_figure_attack_mask(
+        king_on_board_mask = bitboard[king] != 0
+        king_shift = bit_to_shift(bitboard[king])
+        king_surroundings = get_figure_attack_mask_from_shift(
             figure_index=king,
             figure_mask=bitboard[IS_OCCUPIED],
-            i=i,
-            j=j,
+            shift=king_shift,
         )
-        return np.bitwise_count(king_surroundings & bitboard[opposite_attacks])
+        return -(king_on_board_mask * np.bitwise_count(king_surroundings & bitboard[opposite_attacks])).astype(int)

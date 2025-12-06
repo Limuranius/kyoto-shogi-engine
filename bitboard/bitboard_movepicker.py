@@ -1,6 +1,8 @@
-from .bitboard_evaluator import BitboardEvaluator, BLACK, WHITE
-from .Bitboard import *
 import tqdm
+
+from . import BitboardBatch
+from .Bitboard import *
+from .bitboard_evaluator import BitboardEvaluator, BLACK, WHITE
 
 
 class BitboardMovePicker:
@@ -84,3 +86,51 @@ class BitboardMovePicker:
     def direction_function(self, side: int):
         func = {BLACK: max, WHITE: min}
         return func[side]
+
+    """Batch functionality"""
+
+    def direction_function_batch(self, side: int):
+        func = {BLACK: np.max, WHITE: np.min}
+        return func[side]
+
+    def pick_batch_best_move(self, bitboard: Bitboard):
+        batch = BitboardBatch.bitboard_to_batch(bitboard)  # batch of one board
+        moves_and_drops = BitboardBatch.get_bitboards_moves(batch)
+        new_batch = BitboardBatch.make_batch_moves_and_drops(  # batch of all moves from one board
+            batch,
+            moves_and_drops,
+            concat=True,
+        )
+        evals = self.recursive_batch_evaluate(
+            batch=new_batch,
+            depth=1
+        )
+
+        if bitboard[IS_BLACK_TURN]:
+            best_i = evals.argmax()
+        else:
+            best_i = evals.argmin()
+
+        if best_i < len(moves_and_drops[0][0]):
+            return moves_and_drops[0][0][best_i]
+        else:
+            return moves_and_drops[0][1][best_i - len(moves_and_drops[0][0])]
+
+    def recursive_batch_evaluate(self, batch: BitboardBatch, depth: int) -> np.ndarray:
+        if depth == self.max_depth:
+            return self.evaluator.evaluate_board(batch)
+        else:
+            n_boards = batch.shape[1]
+            evals = np.zeros(n_boards, dtype=float)
+            batch_moves_and_drops = BitboardBatch.get_bitboards_moves(batch)
+            func = self.direction_function_batch(batch[IS_BLACK_TURN, 0])
+            for i, new_batch in enumerate(BitboardBatch.make_batch_moves_and_drops(
+                    batch,
+                    batch_moves_and_drops,
+                    concat=False,
+            )):
+                evals[i] = func(self.recursive_batch_evaluate(
+                    batch=new_batch,
+                    depth=depth + 1
+                ))
+            return evals

@@ -428,3 +428,12 @@ class Board:
 
         board.turn = Side.BLACK if bb[bitboard.IS_BLACK_TURN] else Side.WHITE
         return board
+
+    @classmethod
+    def print_batch(cls, batch: bitboard.BitboardBatch.BitboardBatch):
+        n_boards = batch.shape[1]
+        for i in range(n_boards):
+            bb = batch[:, i]
+            board = Board.from_bitboard(bb)
+            print(board.to_str())
+            print()
