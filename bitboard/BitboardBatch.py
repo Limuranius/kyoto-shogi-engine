@@ -1,4 +1,8 @@
+import numpy as np
+
+import speed_analyzer
 from .Bitboard import *
+import bitarray5x5
 
 BitboardBatch = np.ndarray  # Array (bitboard_size, N), where N - number of bitboards, bitboard_size - size of bitboard
 
@@ -7,6 +11,7 @@ def bitboard_to_batch(bitboard: Bitboard):
     return bitboard[None].T
 
 
+@speed_analyzer.add_to_watchlist
 def bits_positions(numbers: np.ndarray, return_shifts=True):
     """
     Takes n-dimensional array of integers as input.
@@ -31,6 +36,7 @@ def bits_positions(numbers: np.ndarray, return_shifts=True):
     return result
 
 
+@speed_analyzer.add_to_watchlist
 def unrag_by_row(
         arr: np.ndarray,
         mask: np.ndarray,
@@ -44,6 +50,7 @@ def unrag_by_row(
     return np.split(filtered, split_points)  # Split into list of arrays
 
 
+@speed_analyzer.add_to_watchlist
 def get_bitboards_moves(bitboards: BitboardBatch) -> list[tuple[np.ndarray, np.ndarray]]:
     """
     Returns all possible moves of bitboards. For each board there are two arrays:
@@ -147,6 +154,7 @@ def get_bitboards_moves(bitboards: BitboardBatch) -> list[tuple[np.ndarray, np.n
     return list(zip(all_moves_by_board, all_drops_by_board))
 
 
+@speed_analyzer.add_to_watchlist
 def update_batch_masks(bitboards: BitboardBatch) -> None:
     """Updates all masks of bitboards according to placement of pieces"""
     if bitboards.shape[1] == 0:  # empty batch
@@ -185,8 +193,9 @@ def update_batch_masks(bitboards: BitboardBatch) -> None:
     bitboards[ATTACKS_WHITE] = white_attacks_mask & ~bitboards[IS_WHITE]
 
 
+@speed_analyzer.add_to_watchlist
 def make_moves_fast(
-        bitboard: Bitboard,
+        bitboard: Bitboard | BitboardBatch,
         prev_pos_bit: np.ndarray,
         new_pos_bit: np.ndarray,
         figure_index: np.ndarray,
@@ -202,11 +211,14 @@ def make_moves_fast(
     Does NOT perform update on batch of boards. Update needs to be performed somewhere else
     """
     n_moves = len(prev_pos_bit)
-    batch = np.repeat(
-        bitboard[:, None],
-        repeats=n_moves,
-        axis=1
-    )
+    if bitboard.ndim == 1:  # is bitboard
+        batch = np.repeat(
+            bitboard[:, None],
+            repeats=n_moves,
+            axis=1
+        )
+    else:  # is batch
+        batch = bitboard
     idx = np.arange(n_moves)
 
     batch[FLIP_FIGURE[figure_index], idx] |= new_pos_bit
@@ -226,17 +238,21 @@ def make_moves_fast(
     return batch
 
 
+@speed_analyzer.add_to_watchlist
 def make_drops_fast(
-        bitboard: Bitboard,
+        bitboard: Bitboard | BitboardBatch,
         drop_pos_bit: np.ndarray,
         figure_index: np.ndarray,
 ) -> BitboardBatch:
     n_moves = len(drop_pos_bit)
-    batch = np.repeat(
-        bitboard[:, None],
-        repeats=n_moves,
-        axis=1
-    )
+    if bitboard.ndim == 1:  # is bitboard
+        batch = np.repeat(
+            bitboard[:, None],
+            repeats=n_moves,
+            axis=1
+        )
+    else:  # is batch
+        batch = bitboard
     idx = np.arange(n_moves)
 
     batch[figure_index, idx] |= drop_pos_bit
@@ -246,21 +262,35 @@ def make_drops_fast(
     return batch
 
 
+@speed_analyzer.add_to_watchlist
 def make_batch_moves_and_drops(
         bitboards: BitboardBatch,
         moves_and_drops: list[tuple[np.ndarray, np.ndarray]],
         concat: bool,
 ) -> BitboardBatch | list[BitboardBatch]:
-    new_bitboards = []
-    for i, (moves, drops) in enumerate(moves_and_drops):
-        bitboard = bitboards[:, i]
-        new_bitboards.append(make_moves_fast(bitboard, *moves.T))
-        new_bitboards.append(make_drops_fast(bitboard, *drops.T))
     if concat:
-        new_bitboards = np.concat(new_bitboards, axis=1)
+        # repeat boards according to number of moves for each board
+        n_moves = [len(moves) for moves, drops in moves_and_drops]
+        n_drops = [len(drops) for moves, drops in moves_and_drops]
+        bitboards_move = np.repeat(bitboards, repeats=n_moves, axis=1)
+        bitboards_drop = np.repeat(bitboards, repeats=n_drops, axis=1)
+
+        moves = np.concat([i[0] for i in moves_and_drops])
+        drops = np.concat([i[1] for i in moves_and_drops])
+
+        bitboards_move = make_moves_fast(bitboards_move, *moves.T)
+        bitboards_drop = make_drops_fast(bitboards_drop, *drops.T)
+
+        new_bitboards = np.concat([bitboards_move, bitboards_drop], axis=1)
         update_batch_masks(new_bitboards)
         return new_bitboards
     else:
+        new_bitboards = []
+        for i, (moves, drops) in enumerate(moves_and_drops):
+            bitboard = bitboards[:, i]
+            new_bitboards.append(make_moves_fast(bitboard, *moves.T))
+            new_bitboards.append(make_drops_fast(bitboard, *drops.T))
+
         result = []
         # concatenating moves and drops for each board separately
         for i in range(0, len(new_bitboards), 2):

@@ -73,7 +73,11 @@ class Figure:
     def __eq__(self, other):
         if other is None:
             return False
-        return self.type == other.type and self.side == other.side and self.state == other.state
+        type_eq = self.type == other.type
+        side_eq = self.side == other.side
+        state_eq = self.state == other.state
+        is_king = self.type == FigureType.KING
+        return (type_eq and side_eq and state_eq) or (type_eq and is_king and side_eq)
 
 
 # Ходы
