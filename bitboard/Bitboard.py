@@ -331,7 +331,7 @@ def make_drop_fast(
     new_bitboard = bitboard.copy()
 
     new_bitboard[figure_index] |= drop_pos_bit
-    decrease_inventory_count(bitboard, figure_index)
+    decrease_inventory_count(new_bitboard, figure_index)
     new_bitboard[IS_BLACK_TURN] = int(not new_bitboard[IS_BLACK_TURN])
 
     update_masks(new_bitboard)
@@ -441,6 +441,7 @@ def diagnostic(bitboard: Bitboard):
     print("=" * 80)
 
     print("INVENTORY")
+    print("  Pv Gv Kv Sv Tv P^ G^ K^ S^ T^")
     print(bin(bitboard[INVENTORY])[2:].zfill(32))
 
     for i in [ATTACKS_BLACK, ATTACKS_WHITE, ATTACKS_FF_BLACK,
